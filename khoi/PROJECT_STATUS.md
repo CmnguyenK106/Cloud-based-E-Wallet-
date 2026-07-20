@@ -84,14 +84,9 @@ The local MVP implements account management, wallet operations, service payments
 
 ## 5. In Progress
 
-No product feature is currently partially implemented. Admin Service Management is complete in the source.
+No local-MVP product feature or verification task is currently in progress. The user reported successful manual testing of the main user and admin flows, and the automated verification pass completed on 2026-07-20.
 
-The active local-MVP work is verification and hardening:
-
-- [ ] Run the full manual regression checklist across user and admin flows
-- [ ] Verify Vietnamese UTF-8 content end-to-end in SQL, API responses, terminal tools, and browser rendering
-- [ ] Verify balances and transaction records remain consistent across all operations
-- [ ] Add focused endpoint and concurrency tests beyond the existing context-load test
+The next phase is JWT authentication and security. Production-grade idempotency, real-database concurrency stress tests, and broader financial audit work remain scheduled for Phase 3.
 
 ## 6. Current Database Structure
 
@@ -183,7 +178,7 @@ Do not treat the current token as secure authentication.
 - Email registration, verification, resend, forgot-password, and reset-password features do not exist.
 - There is no audit log for admin actions.
 - There is no idempotency key or duplicate-request protection for wallet operations.
-- Automated coverage is limited to a Spring application context test.
+- Automated coverage now includes a Spring context test and focused isolated wallet-controller safety tests; it does not yet include browser E2E tests or real-MySQL concurrency stress tests.
 - No AWS deployment, SES integration, SQS workflow, Lambda feature, or production observability is implemented.
 - This application must not handle real money in its current state.
 
@@ -192,8 +187,8 @@ Do not treat the current token as secure authentication.
 | Severity | Issue | Impact / action |
 | --- | --- | --- |
 | High | Demo token can be forged and has no expiry | Replace with JWT before any deployment |
-| High | Core mutation endpoints lack idempotency | Double submissions can create duplicate operations; add idempotency and tests |
-| High | Concurrency behavior is not comprehensively tested | Review wallet locking and prove non-negative balances under concurrent requests |
+| High | Core mutation endpoints lack idempotency | Double submissions can create duplicate operations; add request-level idempotency in Phase 3 |
+| High | Concurrency coverage is isolated rather than a real-MySQL stress test | Deterministic tests verify sender locking behavior, but database-level stress testing remains Phase 3 work |
 | Medium | `/api/test/**` endpoints are unauthenticated | Remove or restrict them before deployment |
 | Medium | DB/API/CORS configuration is hardcoded | Move to environment-specific configuration |
 | Medium | SQL/business logic lives in controllers | Refactor when complexity or test coverage grows |
@@ -203,20 +198,22 @@ Do not treat the current token as secure authentication.
 
 ## 12. Next Recommended Task
 
-**Run and document a full local regression and financial-consistency pass.**
+**Begin Phase 2 by replacing the demo token with JWT authentication.**
 
-Start with all authentication, user wallet, admin transaction, and admin service manual cases. Pay particular attention to simultaneous/double submissions, balance/transaction agreement, inactive-service payment rejection, and Vietnamese UTF-8 rendering. Fix confirmed defects before starting JWT or deployment work.
+Preserve backend role/status checks, existing route behavior, and the single shared frontend. Add expiration and keep JWT work separate from the later idempotency/concurrency phase.
 
 ## 13. Development Roadmap
 
 ### Phase 1 — Finish Local MVP
 
 1. [x] Finish Admin Service Management
-2. [ ] Run full regression testing
-3. [ ] Fix confirmed frontend/backend errors
-4. [ ] Verify Vietnamese UTF-8 content end-to-end
-5. [ ] Confirm transaction and balance consistency
-6. [ ] Confirm inactive services cannot be paid through UI and direct API calls
+2. [x] Run main-flow manual regression testing (reported successful by the user)
+3. [x] Run frontend/backend automated checks and fix confirmed errors
+4. [x] Verify UTF-8 source decoding, SQL/HTTP encoding configuration, Vietnamese API mapping, and frontend compilation
+5. [x] Add isolated transfer, insufficient-balance, rollback, and concurrency safety tests
+6. [x] Confirm inactive-service payment rejection through an automated controller test
+
+Verification scope note: the UTF-8 checks included fatal byte decoding with no replacement characters, intended Vietnamese seed text, backend UTF-8 configuration, a Vietnamese service API mapping test, and a successful frontend production build. Real-browser visual inspection was part of the user's manual main-flow testing but was not automated. Concurrency and rollback tests isolate controller/transaction behavior without mutating the persistent Docker database; real-MySQL stress testing remains Phase 3 work.
 
 ### Phase 2 — Authentication and Security
 
@@ -413,8 +410,18 @@ Most recent automated validation on 2026-07-20:
 
 - Frontend build: passed
 - Frontend lint: passed
-- Backend context test: passed (1 test)
+- Backend tests: passed (8 total: 7 focused wallet safety/UTF-8 tests and 1 application-context test)
 - Backend compile: passed
+
+Focused automated coverage added:
+
+- Successful transfer updates sender/receiver state and records one transaction
+- Insufficient transfer balance performs no mutation
+- Inactive service payment is rejected before wallet mutation
+- Blocked user cannot access a wallet mutation endpoint
+- A wallet-operation failure triggers the Spring transaction rollback boundary
+- Two concurrent outgoing transfers cannot drive the modeled sender balance below zero
+- Vietnamese service name and description survive controller/API response mapping
 
 ## 18. AI Handoff Instructions
 

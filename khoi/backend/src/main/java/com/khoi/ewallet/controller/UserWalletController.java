@@ -249,6 +249,9 @@ public class UserWalletController {
         String description = request.description() == null || request.description().isBlank()
                 ? "Transfer money"
                 : request.description().trim();
+        if (description.length() > 255) {
+            return error("Description must be at most 255 characters", HttpStatus.BAD_REQUEST);
+        }
         String transactionCode = buildTransactionCode(authResult.user().id());
 
         jdbcTemplate.update(
