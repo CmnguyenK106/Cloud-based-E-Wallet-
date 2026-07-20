@@ -16,6 +16,7 @@ import RegisterPage from './pages/RegisterPage'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import AdminTransactionsPage from './pages/admin/AdminTransactionsPage'
+import AdminServicesPage from './pages/admin/AdminServicesPage'
 import { useAuthStore } from './store/authStore'
 
 type AppHeaderProps = {
@@ -189,6 +190,7 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
               <Link to="/admin">Admin Dashboard</Link>
               <Link to="/admin/users">Users</Link>
               <Link to="/admin/transactions">Transactions</Link>
+              <Link to="/admin/services">Services</Link>
               <button onClick={handleLogout}>Logout</button>
             </>
           )}
@@ -348,6 +350,7 @@ function App() {
               </AdminRoute>
             }
           />
+          <Route path="/admin/services" element={<AdminRoute><AdminServicesPage /></AdminRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

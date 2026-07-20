@@ -1271,6 +1271,23 @@ input {
 .transaction-detail-grid span { color: #64748b; font-size: 11px; font-weight: 900; text-transform: uppercase; }
 .transaction-detail-grid strong { color: #0f172a; }
 
+.service-form-fields { display: grid; gap: 16px; }
+.service-form-fields label { display: grid; gap: 7px; color: #0f172a; font-size: 14px; font-weight: 800; }
+.service-form-fields input,
+.service-form-fields textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 14px; color: #111827; background: #fff; font: inherit; resize: vertical; }
+.service-form-fields .service-checkbox { display: flex; align-items: center; }
+.service-form-fields .service-checkbox input { width: 18px; height: 18px; }
+.admin-service-table-wrap { overflow-x: auto; }
+.admin-service-table { width: 100%; min-width: 1120px; border-collapse: collapse; color: #334155; font-size: 14px; }
+.admin-service-table th,
+.admin-service-table td { padding: 14px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
+.admin-service-table th { color: #64748b; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.admin-service-table td:nth-child(4) { max-width: 280px; }
+.service-admin-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.service-admin-actions button { min-height: 38px; padding: 0 12px; }
+.admin-service-card-list { display: none; gap: 16px; }
+.admin-service-card-list p { margin: 0; color: #64748b; }
+
 .profile-page .dashboard-hero h1 {
   margin: 8px 0;
   color: #0f172a;
@@ -1394,6 +1411,8 @@ input {
 
   .admin-transaction-table-wrap { display: none; }
   .admin-transaction-card-list { display: grid; }
+  .admin-service-table-wrap { display: none; }
+  .admin-service-card-list { display: grid; }
   .transaction-detail-grid { grid-template-columns: repeat(2, 1fr); }
 }
 

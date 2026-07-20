@@ -50,6 +50,9 @@ function AdminDashboardPage() {
           <p>Review account activity and manage regular user access.</p>
         </div>
         <div className="admin-hero-actions">
+          <Link className="secondary-button" to="/admin/services">
+            Manage services
+          </Link>
           <Link className="secondary-button" to="/admin/transactions">
             View transactions
           </Link>

@@ -103,6 +103,21 @@ export type AdminTransactionsResponse = {
   pagination: AdminTransactionPagination
 }
 
+export type AdminService = {
+  id: number
+  name: string
+  price: number
+  description: string | null
+  isActive: boolean
+  createdAt: string | null
+  updatedAt: string | null
+}
+export type CreateServiceRequest = { name: string; price: number; description: string; isActive: boolean }
+export type UpdateServiceRequest = Partial<Pick<CreateServiceRequest, 'name' | 'price' | 'description'>>
+export type UpdateServiceStatusRequest = { isActive: boolean }
+export type AdminServicesResponse = { services: AdminService[] }
+export type AdminServiceMutationResponse = { message: string; service: AdminService }
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token')
 
@@ -135,6 +150,24 @@ export const adminApi = {
       '/admin/transactions',
       { headers: getAuthHeaders(), params: filters, signal },
     )
+    return response.data
+  },
+
+  getServices: async () => {
+    const response = await axiosClient.get<AdminServicesResponse>('/admin/services', { headers: getAuthHeaders() })
+    return response.data
+  },
+  createService: async (payload: CreateServiceRequest) => {
+    const response = await axiosClient.post<AdminServiceMutationResponse>('/admin/services', payload, { headers: getAuthHeaders() })
+    return response.data
+  },
+  updateService: async (serviceId: number, payload: UpdateServiceRequest) => {
+    const response = await axiosClient.patch<AdminServiceMutationResponse>(`/admin/services/${serviceId}`, payload, { headers: getAuthHeaders() })
+    return response.data
+  },
+  updateServiceStatus: async (serviceId: number, isActive: boolean) => {
+    const payload: UpdateServiceStatusRequest = { isActive }
+    const response = await axiosClient.patch<AdminServiceMutationResponse>(`/admin/services/${serviceId}/status`, payload, { headers: getAuthHeaders() })
     return response.data
   },
 
