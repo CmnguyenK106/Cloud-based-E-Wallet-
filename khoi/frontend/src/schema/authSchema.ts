@@ -11,8 +11,17 @@ export const loginSchema = z.object({
 
 export const registerSchema = z.object({
   phone: phoneRule,
+  email: z.string().trim().email('Enter a valid email').transform((value) => value.toLowerCase()),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   fullName: z.string().trim().min(1, 'Full name is required'),
+})
+
+export const resetPasswordSchema = z.object({
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  passwordConfirmation: z.string(),
+}).refine((data) => data.password === data.passwordConfirmation, {
+  message: 'Password confirmation does not match',
+  path: ['passwordConfirmation'],
 })
 
 export type LoginForm = z.infer<typeof loginSchema>

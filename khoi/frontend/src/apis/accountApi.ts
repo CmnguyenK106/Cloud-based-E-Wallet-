@@ -18,6 +18,8 @@ export type AdminProfile = {
 type BaseAccount = {
   id: number
   phone: string
+  email: string | null
+  emailVerified: boolean
   role: AccountRole
   status: AccountStatus
   fullName: string | null
@@ -65,6 +67,8 @@ export function accountToAuthUser(account: CurrentAccountResponse): AuthUser {
   return {
     id: account.id,
     phone: account.phone,
+    email: account.email,
+    emailVerified: account.emailVerified,
     role: account.role,
     status: account.status,
     fullName: account.profile.fullName,

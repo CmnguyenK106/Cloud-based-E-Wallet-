@@ -16,7 +16,7 @@ The local MVP implements account management, wallet operations, service payments
 | --- | --- |
 | Frontend | React 19, TypeScript, Vite, React Router, Axios, Zustand, Zod |
 | Backend | Java 17, Spring Boot 4.1, Spring Web MVC, `JdbcTemplate` |
-| Security utility | BCrypt password hashing via Spring Security Crypto |
+| Security | Spring Security, BCrypt password hashing, signed JWT access tokens (JJWT) |
 | Database | MySQL 8 in Docker |
 | Styling | Shared CSS in `frontend/src/App.css`, including responsive layouts |
 | Build | npm/Vite for frontend, Maven for backend |
@@ -25,11 +25,11 @@ The local MVP implements account management, wallet operations, service payments
 
 - One React frontend serves both user and admin experiences.
 - Route guards separate public, user-only, and admin-only pages.
-- The frontend stores the current account and demo token in Zustand and `localStorage`.
+- The frontend stores the current account and JWT access token in Zustand and `localStorage`.
 - Axios uses a shared client and clears invalid/blocked sessions.
 - A 10-second account polling loop refreshes account state and logs out blocked accounts.
 - Spring controllers currently contain SQL and business logic directly; there is no service/repository layer.
-- Protected endpoints extract the account ID from a demo bearer token and reload role/status from MySQL.
+- A stateless Spring Security filter validates signed bearer tokens, then reloads account role/status from MySQL on every protected request.
 - Core wallet mutations use Spring transactions and `JdbcTemplate`.
 - MySQL data persists in a named Docker volume and is initialized from `database/schema.sql` only when the volume is first created.
 
@@ -38,6 +38,8 @@ The local MVP implements account management, wallet operations, service payments
 ### User Features
 
 - [x] Registration with phone, password, and profile creation
+- [x] Required normalized email registration with local email verification
+- [x] Resend-verification and forgot/reset-password flows using hashed, expiring, single-use tokens
 - [x] User login and logout
 - [x] BCrypt password hashing and verification
 - [x] Role-aware post-login navigation
@@ -46,10 +48,12 @@ The local MVP implements account management, wallet operations, service payments
 - [x] Transfer between user wallets
 - [x] Simulated deposit/top-up
 - [x] Transaction history with deposit, transfer, and payment presentation
+- [x] User transaction history exposes and displays only the authenticated wallet's balance before and after each transaction
 - [x] Active service list loaded from MySQL
 - [x] Service payment using the database price
 - [x] Inactive-service payment rejection
 - [x] Wallet and transaction refresh after successful operations
+- [x] Unverified users may log in and use read-only account pages but cannot deposit, transfer, or pay
 
 ### Admin Features
 
@@ -84,15 +88,16 @@ The local MVP implements account management, wallet operations, service payments
 
 ## 5. In Progress
 
-No local-MVP product feature or verification task is currently in progress. The user reported successful manual testing of the main user and admin flows, and the automated verification pass completed on 2026-07-20.
+No local-MVP product feature or verification task is currently in progress. Local email verification and password reset were implemented and automatically verified on 2026-07-20. The existing persistent MySQL volume still requires the documented non-destructive migration before this feature can be run manually.
 
-The next phase is JWT authentication and security. Production-grade idempotency, real-database concurrency stress tests, and broader financial audit work remain scheduled for Phase 3.
+The next recommended work is email registration/verification and password-reset functionality. Production-grade idempotency, real-database concurrency stress tests, and broader financial audit work remain scheduled for Phase 3.
 
 ## 6. Current Database Structure
 
 | Table | Purpose | Important notes |
 | --- | --- | --- |
-| `users` | Shared user/admin accounts | Unique phone, BCrypt password, `user/admin` role, `active/blocked` status |
+| `users` | Shared user/admin accounts | Unique phone, normalized unique regular-user email, verification state, BCrypt password, role/status |
+| `account_tokens` | Verification and recovery tokens | SHA-256 token hash, type, expiry, single-use timestamp, user relationship |
 | `user_profiles` | Regular-user profile | One-to-one with `users` |
 | `admin_profiles` | Administrator profile | One-to-one with `users`; admins do not have wallets |
 | `wallets` | User balance | One wallet per regular user, non-negative balance constraint |
@@ -109,6 +114,10 @@ The schema includes foreign keys and indexes for transaction relationships, time
 | --- | --- | --- |
 | POST | `/api/auth/register` | Register regular user and wallet |
 | POST | `/api/auth/login` | Login user or admin |
+| POST | `/api/auth/verify-email` | Verify a regular-user email with a single-use token |
+| POST | `/api/auth/resend-verification` | Generically request a replacement verification token |
+| POST | `/api/auth/forgot-password` | Generically request password recovery by email |
+| POST | `/api/auth/reset-password` | Reset a regular-user password with a single-use token |
 | GET | `/api/account/me` | Reload current account and status |
 | PATCH | `/api/account/me` | Edit user/admin profile fields |
 
@@ -145,6 +154,9 @@ Development-only `/api/test/**` endpoints also exist and must be removed or prot
 | `/` | Public | Home page |
 | `/login` | Public | Login |
 | `/register` | Public | Registration |
+| `/verify-email` | Public | Verify email from a token query parameter |
+| `/forgot-password` | Public | Request a password-reset link |
+| `/reset-password` | Public | Set a new password from a token query parameter |
 | `/profile` | Authenticated | User/admin profile |
 | `/dashboard` | Regular user | Wallet tabs: wallet, transfer, deposit, services, history |
 | `/admin` | Admin | Admin dashboard |
@@ -156,29 +168,32 @@ Unauthenticated protected navigation redirects to `/login`. A regular user openi
 
 ## 9. Authentication Status
 
-Status: **temporary demo implementation; replacement planned**.
+Status: **signed JWT access-token implementation verified locally**.
 
 - Passwords are stored and checked with BCrypt.
-- The bearer token is a predictable demo token containing the account ID; it is not signed and does not expire.
-- Backend controllers reload the account from MySQL and validate role/status rather than trusting frontend state.
+- Successful login and registration return a signed HS256 JWT access token with the account ID as its subject.
+- Access-token lifetime is configurable with `JWT_EXPIRATION` and defaults to 3600 seconds.
+- `JWT_SECRET` is required at backend startup and must provide at least 32 bytes; no real secret is committed by the JWT implementation.
+- Spring Security validates the signature and expiration, and reloads the account from MySQL so nonexistent, blocked, and role-inappropriate accounts are rejected.
 - Missing/invalid authentication returns `401`; blocked accounts and wrong roles return `403` where applicable.
 - Session polling and the shared Axios error handler log out invalid or blocked sessions.
-- There is no JWT filter chain, refresh token, server-side session revocation, email verification, or password-reset flow.
-
-Do not treat the current token as secure authentication.
+- The frontend retains refresh persistence by storing the access token in the existing `localStorage` session state and attaches it through the shared Axios client.
+- There is no refresh token or server-side JWT revocation list. Password reset does not invalidate already-issued JWTs.
 
 ## 10. Known Limitations
 
-- Authentication uses a demo token instead of JWT.
+- JWT access tokens are stored in `localStorage`, so an XSS defect could expose them.
+- There is no refresh-token flow or server-side per-token revocation; account status changes are enforced through the database check on each protected request.
 - Configuration and development credentials are committed in local configuration files rather than injected from environment variables.
 - Frontend API base URL and backend CORS origin are hardcoded for local development.
 - Local development depends on Docker MySQL.
 - Deposit is simulated and does not contact a provider.
 - No real payment provider, webhook, reconciliation, refund, or payment-order workflow exists.
-- Email registration, verification, resend, forgot-password, and reset-password features do not exist.
+- Email delivery is local-development logging only; Amazon SES is not integrated.
+- Authentication and recovery endpoints do not yet have rate limiting.
 - There is no audit log for admin actions.
 - There is no idempotency key or duplicate-request protection for wallet operations.
-- Automated coverage now includes a Spring context test and focused isolated wallet-controller safety tests; it does not yet include browser E2E tests or real-MySQL concurrency stress tests.
+- Automated coverage now includes a Spring context test, focused isolated wallet-controller safety tests, and JWT/Spring Security integration tests; it does not yet include browser E2E tests or real-MySQL concurrency stress tests.
 - No AWS deployment, SES integration, SQS workflow, Lambda feature, or production observability is implemented.
 - This application must not handle real money in its current state.
 
@@ -186,7 +201,6 @@ Do not treat the current token as secure authentication.
 
 | Severity | Issue | Impact / action |
 | --- | --- | --- |
-| High | Demo token can be forged and has no expiry | Replace with JWT before any deployment |
 | High | Core mutation endpoints lack idempotency | Double submissions can create duplicate operations; add request-level idempotency in Phase 3 |
 | High | Concurrency coverage is isolated rather than a real-MySQL stress test | Deterministic tests verify sender locking behavior, but database-level stress testing remains Phase 3 work |
 | Medium | `/api/test/**` endpoints are unauthenticated | Remove or restrict them before deployment |
@@ -198,9 +212,9 @@ Do not treat the current token as secure authentication.
 
 ## 12. Next Recommended Task
 
-**Begin Phase 2 by replacing the demo token with JWT authentication.**
+**Continue Phase 2 with rate limiting and environment-specific configuration, then implement the Amazon SES email-service adapter.**
 
-Preserve backend role/status checks, existing route behavior, and the single shared frontend. Add expiration and keep JWT work separate from the later idempotency/concurrency phase.
+JWT access-token authentication is now ready as the base for that work. Keep email business logic local first and integrate Amazon SES only after deployment preparation.
 
 ## 13. Development Roadmap
 
@@ -217,12 +231,12 @@ Verification scope note: the UTF-8 checks included fatal byte decoding with no r
 
 ### Phase 2 — Authentication and Security
 
-1. Replace the demo token with JWT.
-2. Add access-token expiration.
-3. Continue validating role/status from the backend.
-4. Add email to registration.
-5. Add email verification and resend.
-6. Add forgot/reset-password flows.
+1. [x] Replace the demo token with JWT.
+2. [x] Add access-token expiration.
+3. [x] Continue validating role/status from the backend.
+4. [x] Add email to registration.
+5. [x] Add email verification and resend.
+6. [x] Add forgot/reset-password flows.
 7. Move secrets and credentials to environment variables.
 8. Restrict CORS by environment.
 9. Remove or protect test endpoints.
@@ -247,7 +261,7 @@ Do not introduce real-money behavior before this phase is stable.
 
 ### Phase 4 — Deployment Preparation
 
-1. Move frontend API URL, database settings, CORS, and future JWT secret to environment variables.
+1. Move frontend API URL, database settings, and CORS to environment-specific configuration; keep the JWT secret environment-only.
 2. Add development and production Spring profiles.
 3. Dockerize the backend and decide whether the frontend also needs a runtime container.
 4. Confirm repeatable production builds.
@@ -378,8 +392,12 @@ Start backend manually:
 
 ```powershell
 cd backend
+$env:JWT_SECRET='<at-least-32-byte-secret>'
+$env:JWT_EXPIRATION='3600'
 .\mvnw.cmd spring-boot:run
 ```
+
+`JWT_SECRET` is required. `JWT_EXPIRATION` is optional and is expressed in seconds; it defaults to `3600`.
 
 Start frontend manually:
 
@@ -406,12 +424,20 @@ mvn -DskipTests compile
 
 `docker compose down -v` is destructive because it removes the development database volume. It is not a routine startup/shutdown command and must not be run unless database deletion is explicitly intended and approved.
 
-Most recent automated validation on 2026-07-20:
+Before starting this version against an existing persistent MySQL volume, apply the one-time non-destructive migration (do not rerun it):
+
+```powershell
+Get-Content -Raw database/migrations/V001__email_verification_and_password_reset.sql | docker compose exec -T mysql mysql -uroot -proot ewallet_db
+```
+
+Use the actual configured MySQL service name and credentials if they differ. Existing regular users receive unique `@local.invalid` placeholder emails and remain verified so their wallet access is preserved; update those placeholders manually if those accounts need password recovery.
+
+Most recent automated validation on 2026-07-20 after local email verification and password-reset implementation:
 
 - Frontend build: passed
 - Frontend lint: passed
-- Backend tests: passed (8 total: 7 focused wallet safety/UTF-8 tests and 1 application-context test)
-- Backend compile: passed
+- Backend tests (`mvn clean test`): passed (44 total: 4 token-service tests, 11 email-auth controller tests, 12 wallet safety/history/verification tests, 1 application-context test, and 16 JWT/Spring Security integration tests)
+- Backend compile (`mvn -DskipTests compile`): passed
 
 Focused automated coverage added:
 
@@ -422,6 +448,31 @@ Focused automated coverage added:
 - A wallet-operation failure triggers the Spring transaction rollback boundary
 - Two concurrent outgoing transfers cannot drive the modeled sender balance below zero
 - Vietnamese service name and description survive controller/API response mapping
+- Outgoing transfer history exposes the authenticated sender's balance before and after
+- Incoming transfer history exposes the authenticated receiver's balance before and after and omits stored sender values
+- User transaction history does not expose separate sender/receiver balance fields
+- Deposit and payment history expose the authenticated user's correct balance before and after
+- Registration requires a valid email, normalizes it, and rejects case-insensitive duplicates
+- New regular users are unverified and receive a local verification URL through the email abstraction
+- Verification and reset tokens are hashed, expiring, single-use, and replaced on reissue
+- Unverified users can log in but receive `EMAIL_NOT_VERIFIED` for deposit, transfer, and payment
+- Forgot-password responses do not reveal account existence
+- Password reset stores a BCrypt hash that matches the new password and rejects the old password
+
+JWT/Spring Security coverage added:
+
+- Login returns a signed access token with expiry metadata
+- A valid token can access a protected endpoint
+- Missing, empty, malformed, forged, and expired tokens are rejected
+- Compact JWTs are rejected unless all three non-empty segments use canonical unpadded Base64URL encoding
+- Changing an existing signature character and appending `4` or `5` to a valid signature are rejected
+- Extra dots, padding, whitespace, and invalid compact-JWT characters are rejected
+- Tokens for nonexistent and blocked accounts are rejected
+- User tokens cannot access admin APIs, and admin tokens cannot access user wallet APIs
+- A token issued before an account is blocked is rejected after the database status changes
+- Login and registration endpoints remain public
+
+The email/JWT verification pass was automated; no new manual browser test was executed during this change, and the persistent database migration was not executed automatically.
 
 ## 18. AI Handoff Instructions
 
@@ -445,7 +496,7 @@ Future AI/Codex sessions must:
 
 - Keep one frontend for user and admin.
 - Keep core wallet operations in Spring Boot.
-- Use JWT with Spring Boot as the preferred authentication direction.
+- Use the implemented Spring Security JWT flow as the authentication foundation.
 - Cognito is not currently planned.
 - Use S3/CloudFront for the production frontend, EC2 for the backend, and RDS for MySQL.
 - Use Lambda only for auxiliary asynchronous notifications, reporting, and alerts.

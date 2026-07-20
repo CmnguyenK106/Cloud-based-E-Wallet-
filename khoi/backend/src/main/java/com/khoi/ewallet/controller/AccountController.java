@@ -1,5 +1,7 @@
 package com.khoi.ewallet.controller;
 
+import com.khoi.ewallet.security.SecurityAccount;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,6 +45,8 @@ public class AccountController {
                 SELECT
                     u.id,
                     u.phone,
+                    u.email,
+                    u.email_verified,
                     u.role,
                     u.status,
                     COALESCE(up.full_name, ap.full_name) AS full_name,
@@ -205,26 +209,15 @@ public class AccountController {
     }
 
     private Integer extractUserId(String authorizationHeader) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            return null;
-        }
-
-        String token = authorizationHeader.substring("Bearer ".length()).trim();
-        if (!token.startsWith("demo-token-")) {
-            return null;
-        }
-
-        try {
-            return Integer.parseInt(token.substring("demo-token-".length()));
-        } catch (NumberFormatException exception) {
-            return null;
-        }
+        return SecurityAccount.currentId();
     }
 
     private Map<String, Object> buildAccount(Map<String, Object> row) {
         Map<String, Object> account = new HashMap<>();
         account.put("id", row.get("id"));
         account.put("phone", row.get("phone"));
+        account.put("email", row.get("email"));
+        account.put("emailVerified", "admin".equalsIgnoreCase(String.valueOf(row.get("role"))) || isTruthy(row.get("email_verified")));
         account.put("fullName", row.get("full_name"));
         account.put("role", row.get("role"));
         account.put("status", row.get("status"));
@@ -276,6 +269,10 @@ public class AccountController {
         }
 
         return null;
+    }
+
+    private boolean isTruthy(Object value) {
+        return Boolean.TRUE.equals(value) || (value instanceof Number number && number.intValue() != 0);
     }
 
     private ResponseEntity<Map<String, Object>> error(String code, String message, HttpStatus status) {

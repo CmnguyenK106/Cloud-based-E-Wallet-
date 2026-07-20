@@ -10,6 +10,7 @@ SET CHARACTER SET utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS account_tokens;
 DROP TABLE IF EXISTS services;
 DROP TABLE IF EXISTS wallets;
 DROP TABLE IF EXISTS admin_profiles;
@@ -27,6 +28,8 @@ CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
     phone VARCHAR(10) NOT NULL UNIQUE,
+    email VARCHAR(254) NULL UNIQUE,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
     password VARCHAR(255) NOT NULL,
 
     role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
@@ -36,7 +39,20 @@ CREATE TABLE users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     CONSTRAINT chk_users_phone_format
-        CHECK (phone REGEXP '^0[0-9]{9}$')
+        CHECK (phone REGEXP '^0[0-9]{9}$'),
+    CONSTRAINT chk_regular_user_email
+        CHECK (role = 'admin' OR email IS NOT NULL)
+);
+
+CREATE TABLE account_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    token_type ENUM('EMAIL_VERIFICATION', 'PASSWORD_RESET') NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_account_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- =====================================================
@@ -183,7 +199,10 @@ CREATE INDEX idx_users_role
 ON users(role);
 
 CREATE INDEX idx_users_status
-ON users(status);
+    ON users(status);
+
+CREATE INDEX idx_account_tokens_user_type
+    ON account_tokens(user_id, token_type, used_at);
 
 CREATE INDEX idx_transactions_sender_wallet
 ON transactions(sender_wallet_id);
@@ -212,14 +231,14 @@ ON transactions(type);
 -- admin password demo: admin123
 -- Passwords are stored as BCrypt hashes.
 
-INSERT INTO users (id, phone, password, role, status)
+INSERT INTO users (id, phone, email, email_verified, password, role, status)
 VALUES
-(1, '0912345678', '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
-(2, '0987654321', '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
-(3, '0901234567', '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
-(4, '0933333333', '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
-(5, '0977777777', '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
-(6, '0900000000', '$2y$10$X/CrAUyTu.5Sfu5VmtaM/u/jjx2T2Zy/vSNaNVBP0ERTHhX2Wh5dy', 'admin', 'active');
+(1, '0912345678', 'user1@example.local', TRUE, '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
+(2, '0987654321', 'user2@example.local', TRUE, '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
+(3, '0901234567', 'user3@example.local', TRUE, '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
+(4, '0933333333', 'user4@example.local', TRUE, '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
+(5, '0977777777', 'user5@example.local', TRUE, '$2y$10$R8ZcOJMic8eoIIN4.D2Vs.HgbcBpq04/CAZ85x02y.42Tv7qh25Lu', 'user', 'active'),
+(6, '0900000000', NULL, TRUE, '$2y$10$X/CrAUyTu.5Sfu5VmtaM/u/jjx2T2Zy/vSNaNVBP0ERTHhX2Wh5dy', 'admin', 'active');
 
 INSERT INTO user_profiles (user_id, full_name, date_of_birth, address)
 VALUES

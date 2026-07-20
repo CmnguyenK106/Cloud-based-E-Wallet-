@@ -10,6 +10,7 @@ function RegisterPage() {
   const navigate = useNavigate()
   const [form, setForm] = useState<RegisterForm>({
     phone: '',
+    email: '',
     password: '',
     fullName: '',
   })
@@ -28,6 +29,7 @@ function RegisterPage() {
       const fieldErrors = result.error.flatten().fieldErrors
       setErrors({
         phone: fieldErrors.phone?.[0],
+        email: fieldErrors.email?.[0],
         password: fieldErrors.password?.[0],
         fullName: fieldErrors.fullName?.[0],
       })
@@ -38,12 +40,11 @@ function RegisterPage() {
     setIsLoading(true)
 
     try {
-      const { phone, password, fullName } = result.data
-      console.log('Register payload:', { phone, password, fullName })
-      const data = await authApi.register(result.data)
+      const { phone, email, password, fullName } = result.data
+      const data = await authApi.register({ phone, email, password, fullName })
       setMessage(data.message || 'Register successfully')
       setIsSuccess(true)
-      setTimeout(() => navigate('/login'), 1000)
+      setTimeout(() => navigate('/login'), 2500)
     } catch (err) {
       console.error(err)
       if (axios.isAxiosError<{ message?: string }>(err)) {
@@ -90,6 +91,17 @@ function RegisterPage() {
               placeholder="0911111111"
             />
             {errors.phone && <span className="field-error">{errors.phone}</span>}
+          </label>
+
+          <label>
+            Email
+            <input
+              value={form.email}
+              onChange={(event) => setForm({ ...form, email: event.target.value })}
+              placeholder="you@example.com"
+              type="email"
+            />
+            {errors.email && <span className="field-error">{errors.email}</span>}
           </label>
 
           <label>

@@ -16,6 +16,14 @@ type ErrorResponse = {
   message?: string
 }
 
+axiosClient.interceptors.request.use((config) => {
+  const accessToken = localStorage.getItem('token')
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`
+  }
+  return config
+})
+
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {

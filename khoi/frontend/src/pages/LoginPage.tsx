@@ -52,8 +52,9 @@ function LoginPage() {
 
     try {
       const data = await authApi.login(result.data)
-      if (data.token && data.user) {
-        setAuth(data.token, data.user, data.wallet)
+      const accessToken = data.accessToken || data.token
+      if (accessToken && data.user) {
+        setAuth(accessToken, data.user, data.wallet)
         navigate(data.user.role === 'admin' ? '/admin' : '/dashboard')
         return
       }
@@ -119,6 +120,9 @@ function LoginPage() {
 
         <p className="auth-switch">
           New customer? <Link to="/register">Create an account</Link>
+        </p>
+        <p className="auth-switch">
+          <Link to="/forgot-password">Forgot your password?</Link>
         </p>
       </section>
     </main>

@@ -132,7 +132,7 @@ function TransactionMeta({ transaction }: { transaction: WalletTransaction }) {
       <div>
         <span>Balance</span>
         <strong>
-          {formatMoney(transaction.balanceBefore)} to{' '}
+          {formatMoney(transaction.balanceBefore)} →{' '}
           {formatMoney(transaction.balanceAfter)}
         </strong>
       </div>
@@ -272,8 +272,10 @@ function TransactionHistory({
                       )}
                     </td>
                     <td>
-                      <span>{formatMoney(transaction.balanceBefore)}</span>
-                      <span>{formatMoney(transaction.balanceAfter)}</span>
+                      <span>
+                        {formatMoney(transaction.balanceBefore)} →{' '}
+                        {formatMoney(transaction.balanceAfter)}
+                      </span>
                     </td>
                   </tr>
                 ))}

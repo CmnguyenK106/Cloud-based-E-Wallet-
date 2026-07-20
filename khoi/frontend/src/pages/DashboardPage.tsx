@@ -5,6 +5,7 @@ import {
   type Service,
 } from '../apis/serviceApi'
 import { walletApi } from '../apis/walletApi'
+import { authApi } from '../apis/authApi'
 import ConfirmationModal from '../components/ConfirmationModal'
 import TransactionHistory from '../components/TransactionHistory'
 import { useToast } from '../hooks/useToast'
@@ -64,6 +65,8 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
   const [servicesError, setServicesError] = useState('')
   const [payingServiceId, setPayingServiceId] = useState<number | null>(null)
   const [transactionRefreshKey, setTransactionRefreshKey] = useState(0)
+  const [verificationMessage, setVerificationMessage] = useState('')
+  const isEmailVerified = user?.emailVerified !== false
 
   const balanceText = formatBalance(wallet?.balance)
   const selectedServicePrice = Number(selectedService?.price || 0)
@@ -130,6 +133,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
 
   const handleTransferSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!isEmailVerified) { setTransferMessage('Verify your email before transferring money.'); return }
     setTransferMessage('')
     setIsTransferSuccess(false)
     setIsTransferLoading(true)
@@ -161,6 +165,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
 
   const handleDepositSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!isEmailVerified) { showToast('Verify your email before depositing funds.', 'error'); return }
 
     const result = depositSchema.safeParse(depositForm)
     if (!result.success) {
@@ -206,6 +211,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
   }
 
   const handlePayClick = (service: Service) => {
+    if (!isEmailVerified) { showToast('Verify your email before paying for services.', 'error'); return }
     if (payingServiceId !== null) {
       return
     }
@@ -272,6 +278,18 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
           <strong>{isWalletLoading ? 'Loading...' : balanceText}</strong>
         </div>
       </section>
+
+      {!isEmailVerified && (
+        <section className="dashboard-card">
+          <div className="form-message error">Your email is not verified. Wallet deposits, transfers, and payments are disabled.</div>
+          <button className="secondary-button" disabled={!user?.email} onClick={async () => {
+            if (!user?.email) return
+            try { const data = await authApi.resendVerification(user.email); setVerificationMessage(data.message) }
+            catch { setVerificationMessage('Unable to request another verification link.') }
+          }}>Resend verification email</button>
+          {verificationMessage && <div className="form-message success">{verificationMessage}</div>}
+        </section>
+      )}
 
       {activeTab === 'wallet' && (
         <section className="dashboard-card wallet-info-card">
@@ -365,7 +383,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
                 {transferMessage}
               </div>
             )}
-            <button className="primary-button" disabled={isTransferLoading}>
+            <button className="primary-button" disabled={isTransferLoading || !isEmailVerified}>
               {isTransferLoading ? 'Transferring...' : 'Transfer'}
             </button>
           </form>
@@ -421,7 +439,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
               )}
             </label>
             <div className="deposit-actions">
-              <button className="primary-button" disabled={isDepositLoading}>
+              <button className="primary-button" disabled={isDepositLoading || !isEmailVerified}>
                 {isDepositLoading ? 'Processing...' : 'Deposit'}
               </button>
               <button
@@ -493,7 +511,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
                       <button
                         className="secondary-button"
                         onClick={() => handlePayClick(service)}
-                        disabled={isPaying}
+                        disabled={isPaying || !isEmailVerified}
                         aria-label={`Pay ${formatCoins(servicePrice)} for ${service.name}`}
                       >
                         {isPaying ? 'Processing...' : 'Pay'}

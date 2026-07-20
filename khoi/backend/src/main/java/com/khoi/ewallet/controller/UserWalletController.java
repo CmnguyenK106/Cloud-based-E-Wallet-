@@ -1,5 +1,7 @@
 package com.khoi.ewallet.controller;
 
+import com.khoi.ewallet.security.SecurityAccount;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -52,6 +55,8 @@ public class UserWalletController {
                 SELECT
                     u.id,
                     u.phone,
+                    u.email,
+                    u.email_verified,
                     u.role,
                     u.status,
                     up.full_name,
@@ -86,6 +91,9 @@ public class UserWalletController {
         AuthResult authResult = authenticate(authorizationHeader);
         if (authResult.errorResponse() != null) {
             return authResult.errorResponse();
+        }
+        if (!authResult.user().emailVerified()) {
+            return emailNotVerified();
         }
 
         BigDecimal amount = request == null ? null : request.amount();
@@ -185,6 +193,9 @@ public class UserWalletController {
         AuthResult authResult = authenticate(authorizationHeader);
         if (authResult.errorResponse() != null) {
             return authResult.errorResponse();
+        }
+        if (!authResult.user().emailVerified()) {
+            return emailNotVerified();
         }
 
         String receiverPhone = request.receiverPhone() == null ? "" : request.receiverPhone().trim();
@@ -315,7 +326,7 @@ public class UserWalletController {
         }
 
         List<Map<String, Object>> wallets = jdbcTemplate.queryForList(
-                "SELECT id FROM wallets WHERE user_id = ? LIMIT 1",
+                "SELECT id, balance FROM wallets WHERE user_id = ? LIMIT 1",
                 authResult.user().id()
         );
 
@@ -323,7 +334,9 @@ public class UserWalletController {
             return error("Wallet not found", HttpStatus.BAD_REQUEST);
         }
 
-        int walletId = ((Number) wallets.get(0).get("id")).intValue();
+        Map<String, Object> wallet = wallets.get(0);
+        int walletId = ((Number) wallet.get("id")).intValue();
+        BigDecimal runningBalance = (BigDecimal) wallet.get("balance");
 
         List<Map<String, Object>> transactionRows = jdbcTemplate.queryForList(
                 """
@@ -357,15 +370,18 @@ public class UserWalletController {
                 LEFT JOIN services s ON t.service_id = s.id
                 WHERE t.sender_wallet_id = ?
                    OR t.receiver_wallet_id = ?
-                ORDER BY t.created_at DESC
+                ORDER BY t.created_at DESC, t.id DESC
                 """,
                 walletId,
                 walletId
         );
 
-        List<Map<String, Object>> transactions = transactionRows.stream()
-                .map(this::buildTransaction)
-                .toList();
+        List<Map<String, Object>> transactions = new ArrayList<>();
+        for (Map<String, Object> row : transactionRows) {
+            BigDecimal balanceBefore = balanceBeforeUserTransaction(row, walletId, runningBalance);
+            transactions.add(buildUserTransaction(row, balanceBefore, runningBalance));
+            runningBalance = balanceBefore;
+        }
 
         Map<String, Object> response = new HashMap<>();
         response.put("transactions", transactions);
@@ -413,6 +429,9 @@ public class UserWalletController {
         AuthResult authResult = authenticate(authorizationHeader);
         if (authResult.errorResponse() != null) {
             return authResult.errorResponse();
+        }
+        if (!authResult.user().emailVerified()) {
+            return emailNotVerified();
         }
 
         if (request == null || request.serviceId() == null || request.serviceId() <= 0) {
@@ -554,7 +573,7 @@ public class UserWalletController {
         }
 
         List<Map<String, Object>> users = jdbcTemplate.queryForList(
-                "SELECT id, role, status FROM users WHERE id = ? LIMIT 1",
+                "SELECT id, role, status, email_verified FROM users WHERE id = ? LIMIT 1",
                 userId
         );
 
@@ -582,29 +601,12 @@ public class UserWalletController {
             return new AuthResult(null, error("FORBIDDEN_ROLE", "User wallet access required", HttpStatus.FORBIDDEN));
         }
 
-        return new AuthResult(new AuthenticatedUser(userId), null);
+        boolean emailVerified = user.get("email_verified") == null || isTruthy(user.get("email_verified"));
+        return new AuthResult(new AuthenticatedUser(userId, emailVerified), null);
     }
 
     private Integer extractUserId(String authorizationHeader) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            return null;
-        }
-
-        String token = authorizationHeader.substring("Bearer ".length()).trim();
-        if (!token.startsWith("demo-token-")) {
-            return null;
-        }
-
-        String tokenValue = token.substring("demo-token-".length());
-        String userIdText = tokenValue.contains("-")
-                ? tokenValue.substring(0, tokenValue.indexOf("-"))
-                : tokenValue;
-
-        try {
-            return Integer.parseInt(userIdText);
-        } catch (NumberFormatException exception) {
-            return null;
-        }
+        return SecurityAccount.currentId();
     }
 
     private String buildTransactionCode(int userId) {
@@ -635,6 +637,8 @@ public class UserWalletController {
         Map<String, Object> user = new HashMap<>();
         user.put("id", row.get("id"));
         user.put("phone", row.get("phone"));
+        user.put("email", row.get("email"));
+        user.put("emailVerified", isTruthy(row.get("email_verified")));
         user.put("fullName", row.get("full_name"));
         user.put("role", row.get("role"));
         user.put("status", row.get("status"));
@@ -682,10 +686,47 @@ public class UserWalletController {
         return transaction;
     }
 
+    private Map<String, Object> buildUserTransaction(
+            Map<String, Object> row, BigDecimal balanceBefore, BigDecimal balanceAfter
+    ) {
+        Map<String, Object> transaction = buildTransaction(row);
+        transaction.put("balanceBefore", balanceBefore);
+        transaction.put("balanceAfter", balanceAfter);
+        return transaction;
+    }
+
+    private BigDecimal balanceBeforeUserTransaction(
+            Map<String, Object> row, int walletId, BigDecimal balanceAfter
+    ) {
+        if (!"success".equals(row.get("status"))) {
+            return balanceAfter;
+        }
+
+        BigDecimal amount = (BigDecimal) row.get("amount");
+        Integer senderWalletId = numberAsInteger(row.get("sender_wallet_id"));
+        Integer receiverWalletId = numberAsInteger(row.get("receiver_wallet_id"));
+
+        if (senderWalletId != null && senderWalletId == walletId) {
+            return balanceAfter.add(amount);
+        }
+        if (receiverWalletId != null && receiverWalletId == walletId) {
+            return balanceAfter.subtract(amount);
+        }
+        return balanceAfter;
+    }
+
+    private Integer numberAsInteger(Object value) {
+        return value instanceof Number number ? number.intValue() : null;
+    }
+
     private ResponseEntity<Map<String, Object>> error(String message, HttpStatus status) {
         Map<String, Object> response = new HashMap<>();
         response.put("message", message);
         return ResponseEntity.status(status).body(response);
+    }
+
+    private ResponseEntity<Map<String, Object>> emailNotVerified() {
+        return error("EMAIL_NOT_VERIFIED", "Verify your email before using wallet operations.", HttpStatus.FORBIDDEN);
     }
 
     private ResponseEntity<Map<String, Object>> error(String code, String message, HttpStatus status) {
@@ -707,7 +748,7 @@ public class UserWalletController {
         return Boolean.parseBoolean(String.valueOf(value));
     }
 
-    private record AuthenticatedUser(int id) {
+    private record AuthenticatedUser(int id, boolean emailVerified) {
     }
 
     private record AuthResult(

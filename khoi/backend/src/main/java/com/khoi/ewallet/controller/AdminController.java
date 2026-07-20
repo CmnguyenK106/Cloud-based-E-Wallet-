@@ -1,5 +1,7 @@
 package com.khoi.ewallet.controller;
 
+import com.khoi.ewallet.security.SecurityAccount;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -454,20 +456,7 @@ public class AdminController {
     }
 
     private Integer extractUserId(String authorizationHeader) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            return null;
-        }
-
-        String token = authorizationHeader.substring("Bearer ".length()).trim();
-        if (!token.startsWith("demo-token-")) {
-            return null;
-        }
-
-        try {
-            return Integer.parseInt(token.substring("demo-token-".length()));
-        } catch (NumberFormatException exception) {
-            return null;
-        }
+        return SecurityAccount.currentId();
     }
 
     private Map<String, Object> buildAdmin(Map<String, Object> row) {
