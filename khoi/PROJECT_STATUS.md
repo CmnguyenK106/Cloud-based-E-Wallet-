@@ -1,546 +1,448 @@
-# PROJECT_STATUS.md
+# Cloud E-wallet Project Status
 
-## 1. Tổng quan dự án
+Last source review: 2026-07-20
 
-| Mục | Thông tin hiện tại |
+This file is the handoff reference for future development sessions. Feature status below was checked against the current source, not copied from older project notes.
+
+## 1. Project Summary
+
+This repository contains a small simulated cloud-based e-wallet web application. It has one shared frontend for regular users and administrators, a Spring Boot REST backend, and a MySQL development database running in Docker.
+
+The local MVP implements account management, wallet operations, service payments, user transaction history, and administrative user, transaction, and service management. It is a learning/demo system and is not suitable for real money.
+
+## 2. Technology Stack
+
+| Area | Current technology |
 | --- | --- |
-| Tên / loại dự án | Cloud-based E-wallet, một hệ thống ví điện tử mô phỏng chạy dạng web application |
-| Mục đích chính | Cho phép người dùng đăng ký bằng số điện thoại, đăng nhập, có ví riêng, xem số dư, chuyển tiền cho ví khác, và chuẩn bị nền tảng cho thanh toán dịch vụ / lịch sử giao dịch |
 | Frontend | React 19, TypeScript, Vite, React Router, Axios, Zustand, Zod |
-| Backend | Java 17, Spring Boot 4.1.0, Spring Web MVC, JDBC qua `JdbcTemplate`, MySQL Driver, BCrypt password encoder |
-| Database | MySQL 8.0, chạy bằng Docker, schema nằm trong `database/schema.sql` |
-| Trạng thái hiện tại | Đã có đăng ký, đăng nhập, lấy thông tin ví, chuyển tiền thật qua backend/database, lấy lịch sử giao dịch qua API. UI dịch vụ còn mock, chưa có API thanh toán dịch vụ, chưa có nạp tiền, chưa có admin dashboard. |
+| Backend | Java 17, Spring Boot 4.1, Spring Web MVC, `JdbcTemplate` |
+| Security utility | BCrypt password hashing via Spring Security Crypto |
+| Database | MySQL 8 in Docker |
+| Styling | Shared CSS in `frontend/src/App.css`, including responsive layouts |
+| Build | npm/Vite for frontend, Maven for backend |
 
-Dự án hiện tại đã đi qua giai đoạn khởi tạo và có một luồng user cơ bản hoạt động với database thật. Tuy nhiên, kiến trúc backend hiện tại còn đơn giản: controller thao tác trực tiếp bằng `JdbcTemplate`, chưa có entity, repository, service layer hoặc security filter/JWT thật.
+## 3. Current Architecture
 
-## 2. Cấu trúc thư mục
+- One React frontend serves both user and admin experiences.
+- Route guards separate public, user-only, and admin-only pages.
+- The frontend stores the current account and demo token in Zustand and `localStorage`.
+- Axios uses a shared client and clears invalid/blocked sessions.
+- A 10-second account polling loop refreshes account state and logs out blocked accounts.
+- Spring controllers currently contain SQL and business logic directly; there is no service/repository layer.
+- Protected endpoints extract the account ID from a demo bearer token and reload role/status from MySQL.
+- Core wallet mutations use Spring transactions and `JdbcTemplate`.
+- MySQL data persists in a named Docker volume and is initialized from `database/schema.sql` only when the volume is first created.
 
-| Đường dẫn | Vai trò |
-| --- | --- |
-| `backend/` | Ứng dụng Spring Boot backend, chứa Maven wrapper, `pom.xml`, controller REST API và cấu hình kết nối database |
-| `backend/src/main/java/com/khoi/ewallet/` | Package root của backend |
-| `backend/src/main/java/com/khoi/ewallet/controller/` | Chứa các controller hiện có: auth, wallet user, API test database |
-| `backend/src/main/resources/application.properties` | Cấu hình server port, datasource MySQL, tên app |
-| `backend/src/test/` | Test mặc định `contextLoads` của Spring Boot |
-| `frontend/` | Ứng dụng React TypeScript dùng Vite |
-| `frontend/src/apis/` | Axios client và các hàm gọi API auth/wallet |
-| `frontend/src/pages/` | Các page chính: Home, Login, Register, Dashboard |
-| `frontend/src/store/` | Zustand auth store, lưu token/user/wallet vào `localStorage` |
-| `frontend/src/schema/` | Zod schema validate form login/register |
-| `frontend/src/App.tsx` | Routing, layout header, protected route, wallet nav tabs |
-| `database/schema.sql` | Tạo database, bảng, ràng buộc, index và dữ liệu seed |
-| `docker-compose.yml` | Chạy MySQL 8.0 container và mount schema init |
-| `start-dev.ps1` | Script PowerShell để start MySQL, backend, frontend |
-| `description.md` | Tài liệu yêu cầu/định hướng ban đầu của dự án. File này trong terminal hiện bị lỗi encoding hiển thị, nhưng nội dung là mô tả yêu cầu e-wallet. |
+## 4. Completed Features
 
-## 3. Backend hiện tại
+### User Features
 
-### 3.1 Công nghệ và cấu hình
+- [x] Registration with phone, password, and profile creation
+- [x] User login and logout
+- [x] BCrypt password hashing and verification
+- [x] Role-aware post-login navigation
+- [x] Profile viewing and editing
+- [x] Wallet information and current balance
+- [x] Transfer between user wallets
+- [x] Simulated deposit/top-up
+- [x] Transaction history with deposit, transfer, and payment presentation
+- [x] Active service list loaded from MySQL
+- [x] Service payment using the database price
+- [x] Inactive-service payment rejection
+- [x] Wallet and transaction refresh after successful operations
 
-| Mục | Giá trị |
-| --- | --- |
-| Spring Boot | `4.1.0` trong `backend/pom.xml` |
-| Java | `17` |
-| Package root | `com.khoi.ewallet` |
-| Server port | `8080` |
-| Database URL | `jdbc:mysql://localhost:3307/ewallet_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh` |
-| DB user/password | `ewallet_user` / `ewallet_pass` |
-| SQL init | `spring.sql.init.mode=never`, database được init bởi Docker mount schema |
-| CORS | Mỗi controller dùng `@CrossOrigin(origins = "http://localhost:5173")` |
-| Auth hiện tại | Demo token dạng `demo-token-{userId}`. API protected yêu cầu header `Authorization: Bearer demo-token-{userId}`. Chưa có JWT thật, chưa có Spring Security filter chain. |
+### Admin Features
 
-Dependencies quan trọng trong `pom.xml`:
+- [x] Admin login and logout
+- [x] Admin-only route guard and backend role checks
+- [x] Admin dashboard and system totals
+- [x] User list with search/status filtering
+- [x] Ban and unban regular users
+- [x] System-wide transaction list
+- [x] Transaction search by code, phones, names, service, and description
+- [x] Transaction type, status, date, and sort filters
+- [x] Stable transaction sorting and zero-based pagination
+- [x] Responsive transaction table/cards and read-only detail modal
+- [x] Admin service list including active and inactive services
+- [x] Create and edit services
+- [x] Activate and deactivate services without deleting rows
+- [x] Service name/description search and status filter
+- [x] Frontend Zod service validation and backend `BigDecimal` validation
+- [x] Case-insensitive, trimmed duplicate service-name rejection
 
-| Dependency | Vai trò |
-| --- | --- |
-| `spring-boot-starter-webmvc` | REST controller / web API |
-| `spring-boot-starter-batch-jdbc` | Kéo JDBC infrastructure; code thực tế dùng `JdbcTemplate` |
-| `mysql-connector-j` | Kết nối MySQL |
-| `spring-security-crypto` | Dùng `BCryptPasswordEncoder` để hash/check password |
-| `spring-boot-devtools` | Hỗ trợ dev local |
+### Shared Features
 
-### 3.2 Controller: `AuthController`
+- [x] One shared frontend for user and admin
+- [x] Public, protected, user-only, and admin-only route behavior
+- [x] Account-status checks against the database
+- [x] Automatic logout when an account becomes blocked
+- [x] Page-refresh persistence through Zustand and `localStorage`
+- [x] Shared toast notifications
+- [x] Centered confirmation modals with Escape handling
+- [x] Responsive desktop/mobile layouts
+- [x] Null-safe transaction and profile rendering
 
-File: `backend/src/main/java/com/khoi/ewallet/controller/AuthController.java`
+## 5. In Progress
 
-| Method | Endpoint | Purpose | Request body | Response | Status |
-| --- | --- | --- | --- | --- | --- |
-| `POST` | `/api/auth/register` | Đăng ký user, hash password, tạo `users`, `user_profiles`, `wallets` với số dư `10.00` | `{ "phone": "...", "password": "...", "fullName": "..." }` | `message`, `token`, `user`, `wallet` | Đã có, dùng DB thật |
-| `POST` | `/api/auth/login` | Đăng nhập bằng phone/password, check BCrypt, check status blocked | `{ "phone": "...", "password": "..." }` | `message`, `token`, `user`, `wallet` | Đã có, dùng DB thật |
+No product feature is currently partially implemented. Admin Service Management is complete in the source.
 
-Hành vi đáng chú ý:
+The active local-MVP work is verification and hardening:
 
-- Validate phone bằng regex `^0[0-9]{9}$`.
-- Password đăng ký tối thiểu 6 ký tự.
-- Register dùng `@Transactional`.
-- Register trả token nhưng frontend hiện không tự login sau register, mà chuyển về trang login.
-- Login với admin có thể trả `wallet = null` vì admin không có ví.
-- Token chỉ là chuỗi demo, không ký số, không hết hạn.
+- [ ] Run the full manual regression checklist across user and admin flows
+- [ ] Verify Vietnamese UTF-8 content end-to-end in SQL, API responses, terminal tools, and browser rendering
+- [ ] Verify balances and transaction records remain consistent across all operations
+- [ ] Add focused endpoint and concurrency tests beyond the existing context-load test
 
-### 3.3 Controller: `UserWalletController`
+## 6. Current Database Structure
 
-File: `backend/src/main/java/com/khoi/ewallet/controller/UserWalletController.java`
-
-| Method | Endpoint | Purpose | Request body | Response | Status |
-| --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/user/wallet/me` | Lấy thông tin user và ví hiện tại từ demo token | Không có | `{ user, wallet }` | Đã có, dùng DB thật |
-| `POST` | `/api/user/wallet/transfer` | Chuyển tiền từ ví user hiện tại sang user khác bằng số điện thoại | `{ "receiverPhone": "...", "amount": 10, "description": "..." }` | `message`, `balance`, `transaction` | Đã có, dùng DB thật |
-| `GET` | `/api/user/wallet/transactions` | Lấy lịch sử giao dịch liên quan đến ví hiện tại | Không có | `{ transactions: [...] }` | Đã có backend API, frontend chưa hiển thị |
-
-Hành vi chuyển tiền:
-
-- Xác thực bằng demo token trong header.
-- Check receiver phone đúng regex.
-- Check amount `> 0` và `<= 10000000`.
-- Không cho chuyển cho chính mình.
-- Lock ví người gửi bằng `SELECT ... FOR UPDATE`.
-- Trừ số dư ví gửi, cộng số dư ví nhận, tạo transaction type `transfer`.
-- Chỉ lưu `balance_before` / `balance_after` theo phía người gửi.
-
-### 3.4 Controller: `TestDbController`
-
-File: `backend/src/main/java/com/khoi/ewallet/controller/TestDbController.java`
-
-| Method | Endpoint | Purpose | Request body | Response | Status |
-| --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/test/ping` | Kiểm tra backend còn chạy | Không có | `message`, `status` | Đã có |
-| `GET` | `/api/test/db` | Kiểm tra kết nối DB, đếm users/wallets/transactions | Không có | `message`, counts | Đã có |
-| `GET` | `/api/test/users` | Lấy danh sách user kèm ví | Không có | Array rows | Đã có, endpoint test không auth |
-| `GET` | `/api/test/transactions` | Lấy 10 transaction mới nhất | Không có | Array rows | Đã có, endpoint test không auth |
-| `GET` | `/api/test/transactions/{phone}` | Lấy transaction theo phone | Không có | Array rows | Đã có, endpoint test không auth |
-
-### 3.5 API chưa có ở backend
-
-| Nhóm chức năng | Trạng thái |
-| --- | --- |
-| Deposit / nạp tiền mô phỏng | Chưa có endpoint |
-| Payment service / thanh toán dịch vụ | Chưa có endpoint |
-| List services cho frontend | Chưa có endpoint public/user |
-| Admin APIs | Chưa có endpoint `/api/admin/**` |
-| JWT / refresh token / role guard | Chưa có |
-
-## 4. Frontend hiện tại
-
-### 4.1 Framework, tooling, dependencies
-
-| Mục | Thông tin |
-| --- | --- |
-| Framework | React `^19.2.7` |
-| Build tool | Vite `^8.1.0` |
-| Language | TypeScript `~6.0.2` |
-| Routing | `react-router-dom` `^7.18.0` |
-| API client | Axios `^1.18.1` |
-| State | Zustand `^5.0.14` |
-| Validation | Zod `^4.4.3` |
-
-Scripts trong `frontend/package.json`:
-
-| Script | Lệnh |
-| --- | --- |
-| `dev` | `vite --open` |
-| `build` | `tsc -b && vite build` |
-| `lint` | `eslint .` |
-| `preview` | `vite preview` |
-
-### 4.2 Routing
-
-File: `frontend/src/App.tsx`
-
-| Route | Component | Bảo vệ | Ghi chú |
-| --- | --- | --- | --- |
-| `/` | `HomePage` | Không | Landing/home UI |
-| `/login` | `LoginPage` | Không | Gọi API login thật |
-| `/register` | `RegisterPage` | Không | Gọi API register thật |
-| `/dashboard` | `DashboardPage` | Có `ProtectedRoute` dựa trên token trong Zustand/localStorage | Chứa các tab Wallet Info, Transfer Money, Services |
-
-### 4.3 API files
-
-| File | Mục đích | API gọi |
+| Table | Purpose | Important notes |
 | --- | --- | --- |
-| `frontend/src/apis/axiosClient.ts` | Tạo Axios instance hardcode base URL `http://localhost:8080/api` | Không |
-| `frontend/src/apis/authApi.ts` | Định nghĩa type và hàm auth | `POST /auth/register`, `POST /auth/login` |
-| `frontend/src/apis/walletApi.ts` | Định nghĩa type và hàm wallet | `GET /user/wallet/me`, `POST /user/wallet/transfer`, `GET /user/wallet/transactions` |
+| `users` | Shared user/admin accounts | Unique phone, BCrypt password, `user/admin` role, `active/blocked` status |
+| `user_profiles` | Regular-user profile | One-to-one with `users` |
+| `admin_profiles` | Administrator profile | One-to-one with `users`; admins do not have wallets |
+| `wallets` | User balance | One wallet per regular user, non-negative balance constraint |
+| `services` | Simulated payment services | Price, optional description, `is_active`, timestamps |
+| `transactions` | Deposit, transfer, and payment history | Sender/receiver/service relationships are nullable; rows are preserved |
 
-### 4.4 Store auth
+The schema includes foreign keys and indexes for transaction relationships, time, type, and account role/status. No migration framework is configured; schema initialization currently relies on the Docker initialization script.
 
-File: `frontend/src/store/authStore.ts`
+## 7. API Overview
 
-| State / action | Vai trò |
-| --- | --- |
-| `token` | Lấy từ `localStorage.token`, dùng để bảo vệ route |
-| `user` | Lấy từ `localStorage.user` |
-| `wallet` | Lấy từ `localStorage.wallet` |
-| `setAuth(token, user, wallet?)` | Lưu token/user/wallet vào localStorage và Zustand |
-| `setWalletData(user, wallet)` | Cập nhật user/wallet sau khi gọi `/wallet/me` |
-| `logout()` | Xóa token/user/wallet khỏi localStorage, reset store |
+### Authentication and Account
 
-### 4.5 Pages/components
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/api/auth/register` | Register regular user and wallet |
+| POST | `/api/auth/login` | Login user or admin |
+| GET | `/api/account/me` | Reload current account and status |
+| PATCH | `/api/account/me` | Edit user/admin profile fields |
 
-| File path | Purpose | State/data quan trọng | APIs called |
-| --- | --- | --- | --- |
-| `frontend/src/pages/HomePage.tsx` | Trang giới thiệu e-wallet với CTA register/login và feature cards | Không có state | Không gọi API |
-| `frontend/src/pages/LoginPage.tsx` | Form login | `form`, `errors`, `message`, `isLoading`; dùng `loginSchema`; gọi `setAuth` khi thành công | `authApi.login` |
-| `frontend/src/pages/RegisterPage.tsx` | Form register | `form`, `errors`, `message`, `isSuccess`, `isLoading`; dùng `registerSchema` | `authApi.register` |
-| `frontend/src/pages/DashboardPage.tsx` | Dashboard với 3 tab wallet/transfer/services | `transferForm`, message/loading states, `user/wallet` từ auth store | `walletApi.getMyWallet`, `walletApi.transferMoney` |
-| `frontend/src/App.tsx` / `AppHeader` | Header, navigation, user dropdown, protected route | `activeTab`, dropdown state, token/user/wallet from store | `walletApi.getMyWallet` khi có token |
+### User Wallet
 
-### 4.6 Luồng UI hiện tại
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/api/user/wallet/me` | Wallet and account information |
+| POST | `/api/user/wallet/deposit` | Simulated deposit |
+| POST | `/api/user/wallet/transfer` | Transfer to another user |
+| GET | `/api/user/wallet/transactions` | Current user's transaction history |
+| GET | `/api/user/wallet/services` | Active services only |
+| POST | `/api/user/wallet/payments` | Pay an active service using its database price |
 
-| Khu vực | Trạng thái |
-| --- | --- |
-| Login flow | Real API. Login thành công lưu token/user/wallet vào localStorage và vào dashboard. |
-| Register flow | Real API. Register thành công tạo user/wallet trong DB, sau đó frontend chuyển sang `/login`. |
-| Dashboard layout | Đã có hero, current balance card, wallet nav tabs. |
-| Wallet Info tab | Real API-backed qua `getMyWallet`; hiển thị full name, phone, role, status, balance. |
-| Transfer Money tab | Real API-backed qua `transferMoney`; sau transfer gọi lại `loadWallet()` để refresh balance. |
-| Services tab | UI/mock. Danh sách services hardcoded trong `DashboardPage.tsx`; nút Pay chỉ hiện message "will be connected later". |
-| User dropdown | Đã có; hiển thị user info và balance; logout xóa localStorage. |
-| Current balance display | Dựa trên wallet trong store, được refresh từ backend khi header/dashboard load. |
-| Transaction history UI | Chưa có page/component hiển thị, dù `walletApi.getMyTransactions` đã tồn tại. |
+### Administration
 
-## 5. Database hiện tại
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/api/admin/dashboard` | Admin profile and summary |
+| GET | `/api/admin/users` | Regular-user list |
+| PATCH | `/api/admin/users/{userId}/status` | Ban or unban user |
+| GET | `/api/admin/transactions` | Paginated system transaction list with filters |
+| GET | `/api/admin/services` | All services |
+| POST | `/api/admin/services` | Create service |
+| PATCH | `/api/admin/services/{serviceId}` | Edit service fields |
+| PATCH | `/api/admin/services/{serviceId}/status` | Activate/deactivate service |
 
-### 5.1 Database và bảng
+Development-only `/api/test/**` endpoints also exist and must be removed or protected before deployment.
 
-Database name: `ewallet_db`
+## 8. Frontend Routes
 
-| Table | Purpose | Important columns | Notes |
-| --- | --- | --- | --- |
-| `users` | Tài khoản chung cho user/admin | `id`, `phone`, `password`, `role`, `status`, `created_at`, `updated_at` | `phone` unique, regex check `^0[0-9]{9}$`, role enum `user/admin`, status enum `active/blocked` |
-| `user_profiles` | Hồ sơ riêng của user thường | `user_id`, `full_name`, `date_of_birth`, `address` | FK `user_id -> users.id`, cascade delete |
-| `admin_profiles` | Hồ sơ admin | `user_id`, `full_name`, `position` | Admin không có wallet |
-| `wallets` | Ví của user | `id`, `user_id`, `balance` | `user_id` unique, FK tới `user_profiles.user_id`, `balance >= 0`, default `10.00` |
-| `services` | Dịch vụ ảo để thanh toán | `id`, `name`, `price`, `description`, `is_active` | Seed 5 service, nhưng backend chưa có API payment/service |
-| `transactions` | Lịch sử giao dịch | `transaction_code`, `sender_wallet_id`, `receiver_wallet_id`, `service_id`, `amount`, `balance_before`, `balance_after`, `type`, `status`, `description`, `created_by`, `created_at` | Type enum `deposit/transfer/payment`, status enum `success/failed` |
+| Route | Access | Purpose |
+| --- | --- | --- |
+| `/` | Public | Home page |
+| `/login` | Public | Login |
+| `/register` | Public | Registration |
+| `/profile` | Authenticated | User/admin profile |
+| `/dashboard` | Regular user | Wallet tabs: wallet, transfer, deposit, services, history |
+| `/admin` | Admin | Admin dashboard |
+| `/admin/users` | Admin | User management |
+| `/admin/transactions` | Admin | Transaction management |
+| `/admin/services` | Admin | Service management |
 
-### 5.2 Relationships
+Unauthenticated protected navigation redirects to `/login`. A regular user opening an admin route is redirected to `/dashboard`. Admin accounts cannot use user wallet routes because the backend verifies role and the frontend uses `UserRoute`.
 
-| Quan hệ | Mô tả |
-| --- | --- |
-| `user_profiles.user_id -> users.id` | Một user thường có một profile |
-| `admin_profiles.user_id -> users.id` | Một admin có một admin profile |
-| `wallets.user_id -> user_profiles.user_id` | Một user profile có đúng một ví |
-| `transactions.sender_wallet_id -> wallets.id` | Ví gửi, nullable |
-| `transactions.receiver_wallet_id -> wallets.id` | Ví nhận, nullable |
-| `transactions.service_id -> services.id` | Dịch vụ thanh toán, nullable |
-| `transactions.created_by -> users.id` | User tạo giao dịch, nullable |
+## 9. Authentication Status
 
-### 5.3 Seed data
+Status: **temporary demo implementation; replacement planned**.
 
-| Loại seed | Nội dung |
-| --- | --- |
-| Users | 5 user thường, 1 admin |
-| Wallets | 5 ví tương ứng user id 1-5 |
-| Services | 5 dịch vụ: phone top-up, điện, nước, internet, game |
-| Transactions | Nhiều transaction mẫu loại `deposit`, `transfer`, `payment` từ ngày 2026-06-01 đến 2026-06-05 |
-| Password hashing | Comment trong SQL ghi password được lưu bằng BCrypt |
+- Passwords are stored and checked with BCrypt.
+- The bearer token is a predictable demo token containing the account ID; it is not signed and does not expire.
+- Backend controllers reload the account from MySQL and validate role/status rather than trusting frontend state.
+- Missing/invalid authentication returns `401`; blocked accounts and wrong roles return `403` where applicable.
+- Session polling and the shared Axios error handler log out invalid or blocked sessions.
+- There is no JWT filter chain, refresh token, server-side session revocation, email verification, or password-reset flow.
 
-### 5.4 Demo accounts
+Do not treat the current token as secure authentication.
 
-| Role | Phone | Password | Notes |
-| --- | --- | --- | --- |
-| User | `0912345678` | `123456` | Seed user id 1, wallet balance `105.00` |
-| User | `0987654321` | `123456` | Seed user id 2, wallet balance `55.00` |
-| User | `0901234567` | `123456` | Seed user id 3, wallet balance `105.00` |
-| User | `0933333333` | `123456` | Seed user id 4, wallet balance `100.00` |
-| User | `0977777777` | `123456` | Seed user id 5, wallet balance `40.00` |
-| Admin | `0900000000` | `admin123` | Seed admin id 6, không có wallet |
+## 10. Known Limitations
 
-## 6. Docker / Local run setup
+- Authentication uses a demo token instead of JWT.
+- Configuration and development credentials are committed in local configuration files rather than injected from environment variables.
+- Frontend API base URL and backend CORS origin are hardcoded for local development.
+- Local development depends on Docker MySQL.
+- Deposit is simulated and does not contact a provider.
+- No real payment provider, webhook, reconciliation, refund, or payment-order workflow exists.
+- Email registration, verification, resend, forgot-password, and reset-password features do not exist.
+- There is no audit log for admin actions.
+- There is no idempotency key or duplicate-request protection for wallet operations.
+- Automated coverage is limited to a Spring application context test.
+- No AWS deployment, SES integration, SQS workflow, Lambda feature, or production observability is implemented.
+- This application must not handle real money in its current state.
 
-### 6.1 Docker Compose
+## 11. Known Issues
 
-File: `docker-compose.yml`
+| Severity | Issue | Impact / action |
+| --- | --- | --- |
+| High | Demo token can be forged and has no expiry | Replace with JWT before any deployment |
+| High | Core mutation endpoints lack idempotency | Double submissions can create duplicate operations; add idempotency and tests |
+| High | Concurrency behavior is not comprehensively tested | Review wallet locking and prove non-negative balances under concurrent requests |
+| Medium | `/api/test/**` endpoints are unauthenticated | Remove or restrict them before deployment |
+| Medium | DB/API/CORS configuration is hardcoded | Move to environment-specific configuration |
+| Medium | SQL/business logic lives in controllers | Refactor when complexity or test coverage grows |
+| Medium | Duplicate service names are application-checked only | Concurrent creates could race; consider a normalized unique key in a migration |
+| Medium | UTF-8/mojibake appears in existing SQL comments and older documentation when read by some tools | Verify actual file encoding and browser/API output before rewriting data |
+| Low | `start-dev.ps1` uses fixed waits instead of health checks | Replace waits with readiness checks when improving developer tooling |
 
-| Mục | Giá trị |
-| --- | --- |
-| Service | `mysql` |
-| Image | `mysql:8.0` |
-| Container name | `ewallet_mysql` |
-| Port mapping | Host `3307` -> Container `3306` |
-| Root password | `root` |
-| Database | `ewallet_db` |
-| User/password | `ewallet_user` / `ewallet_pass` |
-| Volume data | `mysql_data:/var/lib/mysql` |
-| Init schema | `./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql` |
+## 12. Next Recommended Task
 
-### 6.2 Useful commands
+**Run and document a full local regression and financial-consistency pass.**
 
-Start database:
+Start with all authentication, user wallet, admin transaction, and admin service manual cases. Pay particular attention to simultaneous/double submissions, balance/transaction agreement, inactive-service payment rejection, and Vietnamese UTF-8 rendering. Fix confirmed defects before starting JWT or deployment work.
+
+## 13. Development Roadmap
+
+### Phase 1 — Finish Local MVP
+
+1. [x] Finish Admin Service Management
+2. [ ] Run full regression testing
+3. [ ] Fix confirmed frontend/backend errors
+4. [ ] Verify Vietnamese UTF-8 content end-to-end
+5. [ ] Confirm transaction and balance consistency
+6. [ ] Confirm inactive services cannot be paid through UI and direct API calls
+
+### Phase 2 — Authentication and Security
+
+1. Replace the demo token with JWT.
+2. Add access-token expiration.
+3. Continue validating role/status from the backend.
+4. Add email to registration.
+5. Add email verification and resend.
+6. Add forgot/reset-password flows.
+7. Move secrets and credentials to environment variables.
+8. Restrict CORS by environment.
+9. Remove or protect test endpoints.
+10. Add basic rate limiting if practical.
+11. Review password and authentication error handling.
+
+Preferred direction: keep Spring Boot authentication, implement JWT and local email business logic, then integrate Amazon SES after deployment. Cognito is not currently planned.
+
+### Phase 3 — Financial Consistency and Audit
+
+1. Add idempotency for deposit, transfer, and payment.
+2. Prevent duplicate transactions from repeated clicks/requests.
+3. Review and test concurrent transfer behavior and wallet locking.
+4. Prove balances cannot become negative under concurrency.
+5. Verify rollback on every partial-failure path.
+6. Review transaction/reference-code guarantees.
+7. Add admin audit logs for user status and service changes.
+8. Improve failed-transaction modeling.
+9. Add explicit transaction limits and validation policy.
+
+Do not introduce real-money behavior before this phase is stable.
+
+### Phase 4 — Deployment Preparation
+
+1. Move frontend API URL, database settings, CORS, and future JWT secret to environment variables.
+2. Add development and production Spring profiles.
+3. Dockerize the backend and decide whether the frontend also needs a runtime container.
+4. Confirm repeatable production builds.
+5. Add deployment documentation and health checks.
+6. Introduce a database migration strategy.
+7. Document backup and recovery.
+8. Audit the repository for committed secrets.
+
+### Phase 5 — Initial AWS Deployment
+
+Target a cost-conscious first deployment:
+
+- React: Amazon S3 and CloudFront
+- Spring Boot: a small Amazon EC2 instance
+- MySQL: a small, single-AZ Amazon RDS for MySQL instance
+
+Validate HTTPS, frontend/backend connectivity, EC2/RDS connectivity, CORS, authentication, wallet/admin functions, persistence, backup, logs, and cost alerts. Initially avoid a NAT Gateway, Application Load Balancer, and Multi-AZ unless requirements justify them.
+
+### Phase 6 — AWS Email Integration
+
+1. Verify an Amazon SES sender identity.
+2. Configure least-privilege IAM permissions and an SES region.
+3. Connect the locally developed email service to SES.
+4. Send verification and password-reset emails.
+5. Test sandbox restrictions and request production access when needed.
+6. Add templates without committing AWS credentials.
+
+### Phase 7 — Serverless AWS Extensions
+
+Only after the core deployment is stable:
+
+- Notifications: Spring Boot → SQS → Lambda → SES or notification storage
+- Daily reports: EventBridge → Lambda → CSV/JSON in S3
+- Fraud alerts: Spring Boot → SQS → Lambda → alert record/admin notification
+
+Initial Lambda fraud rules may identify rapid transactions, high daily totals, repeated failures, post-unban activity, or repeated receivers. Lambda must not directly change balances or automatically ban users.
+
+### Phase 8 — Payment Sandbox
+
+Before considering real money, add payment orders, pending/success/failed states, provider IDs, idempotency keys, an HTTPS webhook, signature verification, duplicate-webhook prevention, reconciliation, an admin payment-order view, and sandbox tests. Credit a wallet only after a verified backend webhook—never from a frontend success response.
+
+### Phase 9 — Real Payment Consideration
+
+**Deferred and outside the current MVP.**
+
+Do not implement real-money top-up until JWT, email verification, HTTPS, webhook verification, idempotency, audit logs, concurrency tests, limits, reconciliation, failure/refund handling, and legal/provider review are complete.
+
+## 14. AWS Target Architecture
+
+```text
+Users
+  → CloudFront
+  → S3-hosted React application
+  → HTTPS Spring Boot API on EC2
+  → RDS for MySQL
+
+Optional asynchronous extensions after stabilization:
+Spring Boot → SQS → Lambda → SES / S3 / alert storage
+EventBridge → scheduled Lambda → S3 reports
+```
+
+Keep transfer, deposit, payment, and balance logic in Spring Boot. Lambda is reserved for auxiliary asynchronous processing.
+
+## 15. Cost-Control Notes
+
+- Create AWS Budget alerts before deployment.
+- Start with small EC2 and single-AZ RDS resources.
+- Avoid NAT Gateway and load-balancer costs until needed.
+- Set explicit CloudWatch log-retention periods.
+- Remove unused resources and public IPv4 addresses.
+- Monitor RDS storage, snapshots, data transfer, SES, SQS, and Lambda usage.
+- Do not leave temporary environments running without an owner or shutdown plan.
+
+## 16. Manual Test Checklist
+
+### Authentication and Account
+
+- [ ] Register and login as a regular user
+- [ ] Login/logout as admin
+- [ ] Refresh both roles and confirm session persistence
+- [ ] Edit user and admin profiles
+- [ ] Block a logged-in account and confirm automatic logout
+- [ ] Confirm user/admin route redirection and API role rejection
+
+### Wallet and Services
+
+- [ ] Deposit and verify balance plus transaction
+- [ ] Transfer and verify both balances plus transaction history
+- [ ] Pay an active service and verify database price usage
+- [ ] Deactivate a service and confirm it disappears after user refetch
+- [ ] Call payment directly for an inactive service and confirm rejection
+- [ ] Activate the service and confirm it becomes usable again
+- [ ] Verify failed/repeated requests do not cause unexplained balance changes
+
+### Administration
+
+- [ ] Search/filter and ban/unban users
+- [ ] Exercise transaction search, filters, sorting, pagination, and details
+- [ ] Create, edit, activate, and deactivate a service
+- [ ] Verify service duplicate and validation errors
+- [ ] Confirm historical payments still display deactivated service names
+
+### Quality
+
+- [ ] Test responsive user/admin layouts
+- [ ] Verify Vietnamese text from schema through API to browser
+- [ ] Compare wallet balances with transaction records
+- [ ] Run frontend build/lint and backend tests/compile
+
+## 17. Commands
+
+Run from the repository root unless noted.
+
+Start the existing local development stack:
+
+```powershell
+.\start-dev.ps1
+```
+
+Start or stop only the Docker services while preserving data:
 
 ```powershell
 docker compose up -d
+docker compose stop
 ```
 
-Stop and remove database volume:
-
-```powershell
-docker compose down -v
-```
-
-Start backend:
+Start backend manually:
 
 ```powershell
 cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-Start frontend:
+Start frontend manually:
 
 ```powershell
 cd frontend
-npm install
 npm run dev
 ```
 
-Run all with script:
+Validate frontend:
 
 ```powershell
-.\start-dev.ps1
+cd frontend
+npm run build
+npm run lint
 ```
 
-`start-dev.ps1` sẽ:
-
-- Chạy `docker compose up -d`.
-- Chờ 5 giây.
-- Mở PowerShell mới chạy backend bằng `cmd /c mvnw.cmd spring-boot:run`.
-- Chờ 5 giây.
-- Mở PowerShell mới chạy frontend bằng `npm run dev -- --open`.
-- In backend `http://localhost:8080` và frontend `http://localhost:5173`.
-
-## 7. Chức năng đã làm được
-
-| Feature | Frontend | Backend | Database | Status | Notes |
-| --- | --- | --- | --- | --- | --- |
-| Register account | Có form, Zod validation, gọi API | `POST /api/auth/register` | Insert `users`, `user_profiles`, `wallets` | Working real backend/database | Frontend chuyển về login sau register |
-| Login account | Có form, lưu Zustand/localStorage | `POST /api/auth/login` | Check user/password/status | Working real backend/database | Dùng demo token |
-| Logout | Có user dropdown logout | Không cần backend | Xóa localStorage frontend | Working frontend-only | Không revoke token vì token demo |
-| Protected dashboard | Có `ProtectedRoute` theo token | Không liên quan | Không liên quan | Working frontend-only | Chỉ check token tồn tại |
-| Display dashboard | Có UI dashboard | Không trực tiếp | Không trực tiếp | Working UI | Dashboard load wallet từ backend |
-| User dropdown | Có UI và logout | Không trực tiếp | Không trực tiếp | Working UI | Balance lấy từ store/API |
-| Wallet info | Có tab Wallet Info | `GET /api/user/wallet/me` | Read `users`, `user_profiles`, `wallets` | Working real backend/database | Refresh khi vào dashboard/header |
-| Current balance display | Có ở hero, dropdown, wallet tab | API wallet/me và transfer response | Read/update `wallets.balance` | Working real backend/database | Sau transfer có refresh |
-| Transfer money | Có form | `POST /api/user/wallet/transfer` | Update 2 wallets, insert transaction | Working real backend/database | Có transaction DB, validate cơ bản |
-| Transaction history API | Frontend có hàm API nhưng chưa có UI | `GET /api/user/wallet/transactions` | Read `transactions` | Backend ready, UI missing | Cần page/tab hiển thị |
-| Services cards UI | Có hardcoded cards | Chưa có API | Seed services có sẵn | UI only/mock | Pay button chỉ hiện message |
-| Payment service | Có nút Pay mock | Chưa có API | Schema hỗ trợ `payment` | Not implemented | Cần backend API và frontend connect |
-| Deposit | Home mô tả mock deposit | Chưa có UI/API | Schema hỗ trợ `deposit` và seed data | Not implemented | Cần thêm endpoint/form |
-| Admin | Login admin có thể thành công | Chưa có admin API | Có role/admin profile seed | Partially prepared | Admin vào dashboard user sẽ lỗi wallet/me |
-
-## 8. Chức năng đang lỗi hoặc cần kiểm tra
-
-| Issue | Location | Explanation | Suggested fix |
-| --- | --- | --- | --- |
-| Token chỉ là demo token | Backend `UserWalletController.extractUserId`, `AuthController.buildDemoToken` | Token dạng `demo-token-{userId}` dễ giả mạo, không có expiry/signature | Sau khi ổn chức năng, thay bằng JWT hoặc session auth |
-| Frontend protected route chỉ check token tồn tại | `frontend/src/App.tsx` | Nếu localStorage có token giả, route vẫn mở; API sẽ báo Unauthorized sau | Gọi `/api/user/wallet/me` hoặc endpoint `/me` để validate token khi app load |
-| Services UI chưa gọi DB/API | `frontend/src/pages/DashboardPage.tsx` | Danh sách service hardcoded, nút Pay chỉ hiện message mock | Tạo backend API list/pay services và frontend `serviceApi.ts` |
-| Chưa có deposit API/UI | Backend/frontend | Schema có transaction `deposit`, seed có deposit, nhưng app chưa có chức năng nạp tiền | Tạo `POST /api/user/wallet/deposit` và tab/form deposit |
-| Transaction history chưa hiển thị | `frontend/src/apis/walletApi.ts`, dashboard | Có `getMyTransactions` nhưng không page/component gọi | Thêm tab/page Transactions, gọi API và render table |
-| Admin login không có dashboard riêng | `frontend/src/App.tsx`, `DashboardPage.tsx`, backend auth | Admin không có wallet, nhưng dashboard user gọi wallet/me nên có thể lỗi | Redirect admin sang route admin riêng hoặc chặn admin vào dashboard user |
-| Test endpoints không auth | `TestDbController` | `/api/test/users` và transactions trả dữ liệu nhạy cảm trong dev | Giữ dev-only hoặc xóa/khóa trước deploy |
-| CORS hardcoded | Backend controllers | Chỉ cho `http://localhost:5173` | Đưa origin vào config/env khi deploy |
-| API base URL hardcoded | `frontend/src/apis/axiosClient.ts` | Frontend cố định `http://localhost:8080/api` | Dùng `import.meta.env.VITE_API_URL` |
-| Register frontend log password | `frontend/src/pages/RegisterPage.tsx` | `console.log('Register payload:', { phone, password, fullName })` in password ra console | Xóa log trước khi demo/deploy |
-| Chưa có backend service layer | Backend controllers | Controller chứa SQL và business logic trực tiếp | Khi mở rộng, tách service/repository để dễ test/maintain |
-| Lock receiver wallet chưa dùng `FOR UPDATE` | `UserWalletController.transferMoney` | Sender wallet được lock, receiver wallet được đọc từ query thường trước khi update | Cân nhắc lock cả receiver wallet trong transaction để chắc chắn hơn khi concurrency cao |
-| `description.md` / comment SQL bị lỗi hiển thị encoding trong terminal | `description.md`, `database/schema.sql` comments | Nội dung tiếng Việt bị mojibake khi đọc bằng shell hiện tại | Kiểm tra encoding UTF-8 và lưu lại đúng encoding nếu cần |
-
-## 9. Việc cần làm tiếp theo
-
-| Priority | TODO | Files likely need editing | API/database involved |
-| --- | --- | --- | --- |
-| High | Kết nối transaction history UI | `frontend/src/pages/DashboardPage.tsx`, có thể thêm `TransactionHistory` component | Dùng sẵn `GET /api/user/wallet/transactions` |
-| High | Hoàn thiện transfer validation frontend | `frontend/src/pages/DashboardPage.tsx`, có thể thêm schema wallet/transfer | Dùng `POST /api/user/wallet/transfer`; validate phone/amount trước khi gửi |
-| High | Thêm deposit API và UI | Backend thêm controller method, frontend thêm tab/form và `walletApi.deposit` | Update `wallets`, insert `transactions` type `deposit` |
-| High | Kết nối services từ database | Backend thêm `GET /api/user/services` hoặc `/api/services`, frontend thêm `serviceApi.ts` | Read table `services` |
-| High | Thêm payment service API | Backend thêm endpoint payment, frontend nối nút Pay thật | Update `wallets`, insert `transactions` type `payment`, dùng `services` |
-| Medium | Refresh balance sau payment/deposit | `DashboardPage.tsx`, store wallet | Gọi lại `getMyWallet` sau giao dịch |
-| Medium | Tách backend service/repository | `backend/src/main/java/...` | Giữ SQL hoặc chuyển dần sang repository/JPA |
-| Medium | Thêm admin dashboard sau | Frontend routes `/admin`, backend `/api/admin/**` | Dùng `users`, `wallets`, `transactions`, `services` |
-| Medium | Đưa config vào env | `axiosClient.ts`, `application.properties`, Docker config | `VITE_API_URL`, DB env vars, CORS origin |
-| Low | Cải thiện bảo mật | Backend auth/security config, frontend route guard | JWT/session, role guard, token expiry, remove test endpoints |
-| Low | Thêm test | Backend test controller/service, frontend build/lint | Test auth, wallet, transfer, validation |
-
-## 10. API testing commands
-
-Các lệnh dưới đây dùng PowerShell, backend `localhost:8080`, token demo dạng `Bearer demo-token-{userId}`.
-
-Ping backend:
+Validate backend:
 
 ```powershell
-Invoke-RestMethod -Method GET -Uri "http://localhost:8080/api/test/ping"
+cd backend
+mvn clean test
+mvn -DskipTests compile
 ```
 
-Check database:
+`docker compose down -v` is destructive because it removes the development database volume. It is not a routine startup/shutdown command and must not be run unless database deletion is explicitly intended and approved.
 
-```powershell
-Invoke-RestMethod -Method GET -Uri "http://localhost:8080/api/test/db"
-```
+Most recent automated validation on 2026-07-20:
 
-Register:
+- Frontend build: passed
+- Frontend lint: passed
+- Backend context test: passed (1 test)
+- Backend compile: passed
 
-```powershell
-$body = @{
-  phone = "0911111111"
-  password = "123456"
-  fullName = "Demo User"
-} | ConvertTo-Json
+## 18. AI Handoff Instructions
 
-Invoke-RestMethod -Method POST `
-  -Uri "http://localhost:8080/api/auth/register" `
-  -ContentType "application/json" `
-  -Body $body
-```
+Future AI/Codex sessions must:
 
-Login:
+1. Read this file first, then inspect the actual source before changing anything.
+2. Treat source code and executed checks as authoritative if this document becomes stale.
+3. Do not redo completed features without evidence of a defect or an explicit request.
+4. Do not replace the architecture or authentication direction without approval.
+5. Preserve the single shared frontend and existing user/admin behavior.
+6. Do not reset, delete, or recreate the database unless explicitly requested.
+7. Never run `docker compose down -v` as routine setup.
+8. Do not expose credentials, passwords, private tokens, or cloud secrets in code, logs, or reports.
+9. Keep core financial logic in Spring Boot; do not move balance mutations to Lambda.
+10. Do not hard-delete services or historical transactions; use `is_active` for service availability.
+11. Build and test after changes in proportion to risk.
+12. Report files changed and commands/tests actually executed; never claim unexecuted tests passed.
+13. Ask only when a decision materially affects architecture, authorization, external systems, or data safety.
 
-```powershell
-$body = @{
-  phone = "0912345678"
-  password = "123456"
-} | ConvertTo-Json
+## 19. Design Decisions
 
-Invoke-RestMethod -Method POST `
-  -Uri "http://localhost:8080/api/auth/login" `
-  -ContentType "application/json" `
-  -Body $body
-```
-
-Get wallet info:
-
-```powershell
-Invoke-RestMethod -Method GET `
-  -Uri "http://localhost:8080/api/user/wallet/me" `
-  -Headers @{ Authorization = "Bearer demo-token-1" }
-```
-
-Transfer money:
-
-```powershell
-$body = @{
-  receiverPhone = "0987654321"
-  amount = 5
-  description = "Test transfer"
-} | ConvertTo-Json
-
-Invoke-RestMethod -Method POST `
-  -Uri "http://localhost:8080/api/user/wallet/transfer" `
-  -Headers @{ Authorization = "Bearer demo-token-1" } `
-  -ContentType "application/json" `
-  -Body $body
-```
-
-Get transactions:
-
-```powershell
-Invoke-RestMethod -Method GET `
-  -Uri "http://localhost:8080/api/user/wallet/transactions" `
-  -Headers @{ Authorization = "Bearer demo-token-1" }
-```
-
-Endpoints chưa tồn tại nên chưa có command thật:
-
-- Deposit: chưa có `POST /api/user/wallet/deposit`.
-- Payment: chưa có `POST /api/user/wallet/payment`.
-- Services list: chưa có endpoint chính thức ngoài test/raw DB.
-
-## 11. Database checking commands
-
-Vào MySQL trong Docker:
-
-```powershell
-docker exec -it ewallet_mysql mysql -uewallet_user -pewallet_pass ewallet_db
-```
-
-SELECT users + wallet balance:
-
-```sql
-SELECT
-  u.id,
-  u.phone,
-  u.role,
-  u.status,
-  up.full_name,
-  w.id AS wallet_id,
-  w.balance
-FROM users u
-LEFT JOIN user_profiles up ON u.id = up.user_id
-LEFT JOIN wallets w ON u.id = w.user_id
-ORDER BY u.id;
-```
-
-SELECT latest transactions:
-
-```sql
-SELECT
-  t.id,
-  t.transaction_code,
-  t.type,
-  sender_user.phone AS sender_phone,
-  receiver_user.phone AS receiver_phone,
-  s.name AS service_name,
-  t.amount,
-  t.balance_before,
-  t.balance_after,
-  t.status,
-  t.description,
-  t.created_at
-FROM transactions t
-LEFT JOIN wallets sender_wallet ON t.sender_wallet_id = sender_wallet.id
-LEFT JOIN users sender_user ON sender_wallet.user_id = sender_user.id
-LEFT JOIN wallets receiver_wallet ON t.receiver_wallet_id = receiver_wallet.id
-LEFT JOIN users receiver_user ON receiver_wallet.user_id = receiver_user.id
-LEFT JOIN services s ON t.service_id = s.id
-ORDER BY t.created_at DESC
-LIMIT 20;
-```
-
-SELECT services:
-
-```sql
-SELECT
-  id,
-  name,
-  price,
-  description,
-  is_active,
-  created_at,
-  updated_at
-FROM services
-ORDER BY id;
-```
-
-Check one user's wallet and transactions:
-
-```sql
-SELECT
-  u.phone,
-  up.full_name,
-  w.id AS wallet_id,
-  w.balance
-FROM users u
-JOIN user_profiles up ON u.id = up.user_id
-JOIN wallets w ON u.id = w.user_id
-WHERE u.phone = '0912345678';
-
-SELECT
-  t.transaction_code,
-  t.type,
-  t.amount,
-  t.status,
-  t.description,
-  t.created_at
-FROM transactions t
-JOIN wallets w ON t.sender_wallet_id = w.id OR t.receiver_wallet_id = w.id
-JOIN users u ON w.user_id = u.id
-WHERE u.phone = '0912345678'
-ORDER BY t.created_at DESC;
-```
-
-## 12. Notes for future AI/Codex
-
-Dự án là Cloud-based E-wallet mô phỏng gồm React TypeScript frontend, Spring Boot Java backend và MySQL Docker database. Hiện frontend có Home/Login/Register/Dashboard, auth store bằng Zustand + localStorage, Axios base URL hardcoded `http://localhost:8080/api`. Backend dùng Spring Boot 4.1.0, Java 17, `JdbcTemplate`, MySQL, BCrypt. Auth hiện tại là demo token `demo-token-{userId}`, không phải JWT.
-
-Các chức năng real backend/database đã có: register tạo user/profile/wallet với balance 10, login check BCrypt/status, lấy wallet hiện tại, transfer money giữa hai ví, ghi transaction transfer, API lấy transaction history. Các phần còn mock/chưa xong: services tab hardcoded và Pay chỉ hiện message, chưa có deposit API/UI, chưa có payment API, chưa có transaction history UI, chưa có admin dashboard/API. Database đã có bảng `users`, `user_profiles`, `admin_profiles`, `wallets`, `services`, `transactions` và seed data đầy đủ.
-
-Bước nên làm tiếp theo: trước tiên thêm UI transaction history vì backend API đã sẵn; sau đó thêm deposit endpoint/UI; tiếp theo connect services từ DB và implement payment API. Khi chức năng ổn, cải thiện auth bằng JWT/session, tách service/repository, đưa API URL/CORS/DB config vào env, và xử lý admin route riêng.
+- Keep one frontend for user and admin.
+- Keep core wallet operations in Spring Boot.
+- Use JWT with Spring Boot as the preferred authentication direction.
+- Cognito is not currently planned.
+- Use S3/CloudFront for the production frontend, EC2 for the backend, and RDS for MySQL.
+- Use Lambda only for auxiliary asynchronous notifications, reporting, and alerts.
+- Do not move transfer, deposit, payment, or balance mutation logic to Lambda initially.
+- Never hard-delete services; deactivate through `is_active`.
+- Preserve historical transactions.
+- Defer real-money top-up until the security, consistency, audit, webhook, and legal prerequisites are complete.
