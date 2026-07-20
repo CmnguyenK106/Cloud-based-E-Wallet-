@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../apis/authApi'
 import { loginSchema, type LoginForm } from '../schema/authSchema'
@@ -7,13 +7,31 @@ import { useAuthStore } from '../store/authStore'
 
 type LoginErrors = Partial<Record<keyof LoginForm, string>>
 
+function consumeAuthMessage() {
+  const authMessage = sessionStorage.getItem('authMessage') || ''
+  if (authMessage) {
+    sessionStorage.removeItem('authMessage')
+  }
+  return authMessage
+}
+
 function LoginPage() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((state) => state.setAuth)
+  const token = useAuthStore((state) => state.token)
+  const user = useAuthStore((state) => state.user)
   const [form, setForm] = useState<LoginForm>({ phone: '', password: '' })
   const [errors, setErrors] = useState<LoginErrors>({})
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState(consumeAuthMessage)
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!token || !user) {
+      return
+    }
+
+    navigate(user.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
+  }, [navigate, token, user])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -36,7 +54,7 @@ function LoginPage() {
       const data = await authApi.login(result.data)
       if (data.token && data.user) {
         setAuth(data.token, data.user, data.wallet)
-        navigate('/dashboard')
+        navigate(data.user.role === 'admin' ? '/admin' : '/dashboard')
         return
       }
       setMessage(data.message || 'Login failed')

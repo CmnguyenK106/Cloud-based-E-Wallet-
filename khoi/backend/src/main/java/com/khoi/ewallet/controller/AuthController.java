@@ -122,9 +122,11 @@ public class AuthController {
                     u.password,
                     u.role,
                     u.status,
-                    up.full_name
+                    COALESCE(up.full_name, ap.full_name) AS full_name,
+                    ap.position
                 FROM users u
                 LEFT JOIN user_profiles up ON u.id = up.user_id
+                LEFT JOIN admin_profiles ap ON u.id = ap.user_id
                 WHERE u.phone = ?
                 LIMIT 1
                 """,
@@ -199,6 +201,9 @@ public class AuthController {
         user.put("role", userRow.get("role"));
         user.put("status", userRow.get("status"));
         user.put("fullName", userRow.get("full_name"));
+        if ("admin".equalsIgnoreCase(String.valueOf(userRow.get("role")))) {
+            user.put("position", userRow.get("position"));
+        }
         return user;
     }
 

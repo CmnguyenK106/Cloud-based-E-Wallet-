@@ -6,6 +6,7 @@ type AuthState = {
   user: AuthUser | null
   wallet: Wallet | null
   setAuth: (token: string, user: AuthUser, wallet?: Wallet) => void
+  setAccount: (user: AuthUser) => void
   setWalletData: (user: AuthUser, wallet: Wallet) => void
   logout: () => void
 }
@@ -41,6 +42,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem('wallet')
     }
     set({ token, user, wallet: wallet || null })
+  },
+
+  setAccount: (user) => {
+    localStorage.setItem('user', JSON.stringify(user))
+    set({ user })
   },
 
   setWalletData: (user, wallet) => {

@@ -27,6 +27,8 @@ public class UserWalletController {
 
     private static final Pattern PHONE_PATTERN = Pattern.compile("^0[0-9]{9}$");
     private static final BigDecimal MAX_TRANSFER_AMOUNT = new BigDecimal("10000000");
+    private static final BigDecimal MIN_DEPOSIT_AMOUNT = new BigDecimal("1.00");
+    private static final BigDecimal MAX_DEPOSIT_AMOUNT = new BigDecimal("10000000.00");
     private static final DateTimeFormatter TRANSACTION_CODE_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
@@ -72,6 +74,105 @@ public class UserWalletController {
         Map<String, Object> response = new HashMap<>();
         response.put("user", buildUser(row));
         response.put("wallet", buildWallet(row));
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/deposit")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> depositMoney(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody DepositRequest request
+    ) {
+        AuthResult authResult = authenticate(authorizationHeader);
+        if (authResult.errorResponse() != null) {
+            return authResult.errorResponse();
+        }
+
+        BigDecimal amount = request == null ? null : request.amount();
+        String amountError = validateDepositAmount(amount);
+        if (amountError != null) {
+            return error(amountError, HttpStatus.BAD_REQUEST);
+        }
+
+        String description = request.description() == null || request.description().isBlank()
+                ? "Simulated deposit"
+                : request.description().trim();
+        if (description.length() > 255) {
+            return error("Description must be at most 255 characters", HttpStatus.BAD_REQUEST);
+        }
+
+        List<Map<String, Object>> wallets = jdbcTemplate.queryForList(
+                "SELECT id, balance FROM wallets WHERE user_id = ? FOR UPDATE",
+                authResult.user().id()
+        );
+
+        if (wallets.isEmpty()) {
+            return error("Wallet not found", HttpStatus.BAD_REQUEST);
+        }
+
+        Map<String, Object> wallet = wallets.get(0);
+        int walletId = ((Number) wallet.get("id")).intValue();
+        BigDecimal balanceBefore = (BigDecimal) wallet.get("balance");
+        BigDecimal balanceAfter = balanceBefore.add(amount);
+        String transactionCode = buildTransactionCode(authResult.user().id());
+
+        jdbcTemplate.update(
+                "UPDATE wallets SET balance = ? WHERE id = ?",
+                balanceAfter,
+                walletId
+        );
+
+        jdbcTemplate.update(
+                """
+                INSERT INTO transactions (
+                    transaction_code,
+                    sender_wallet_id,
+                    receiver_wallet_id,
+                    service_id,
+                    amount,
+                    balance_before,
+                    balance_after,
+                    type,
+                    status,
+                    description,
+                    created_by
+                )
+                VALUES (?, NULL, ?, NULL, ?, ?, ?, 'deposit', 'success', ?, ?)
+                """,
+                transactionCode,
+                walletId,
+                amount,
+                balanceBefore,
+                balanceAfter,
+                description,
+                authResult.user().id()
+        );
+
+        Map<String, Object> transactionRow = jdbcTemplate.queryForMap(
+                """
+                SELECT
+                    id,
+                    transaction_code,
+                    type,
+                    sender_wallet_id,
+                    receiver_wallet_id,
+                    service_id,
+                    amount,
+                    balance_before,
+                    balance_after,
+                    status,
+                    description,
+                    created_at
+                FROM transactions
+                WHERE transaction_code = ?
+                """,
+                transactionCode
+        );
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Deposit completed successfully");
+        response.put("balance", balanceAfter);
+        response.put("transaction", buildTransaction(transactionRow));
         return ResponseEntity.ok(response);
     }
 
@@ -227,8 +328,15 @@ public class UserWalletController {
                     t.id,
                     t.transaction_code,
                     t.type,
+                    t.sender_wallet_id,
+                    sender_wallet.user_id AS sender_user_id,
                     sender_user.phone AS sender_phone,
+                    sender_profile.full_name AS sender_name,
+                    t.receiver_wallet_id,
+                    receiver_wallet.user_id AS receiver_user_id,
                     receiver_user.phone AS receiver_phone,
+                    receiver_profile.full_name AS receiver_name,
+                    t.service_id,
                     s.name AS service_name,
                     t.amount,
                     t.balance_before,
@@ -239,8 +347,10 @@ public class UserWalletController {
                 FROM transactions t
                 LEFT JOIN wallets sender_wallet ON t.sender_wallet_id = sender_wallet.id
                 LEFT JOIN users sender_user ON sender_wallet.user_id = sender_user.id
+                LEFT JOIN user_profiles sender_profile ON sender_user.id = sender_profile.user_id
                 LEFT JOIN wallets receiver_wallet ON t.receiver_wallet_id = receiver_wallet.id
                 LEFT JOIN users receiver_user ON receiver_wallet.user_id = receiver_user.id
+                LEFT JOIN user_profiles receiver_profile ON receiver_user.id = receiver_profile.user_id
                 LEFT JOIN services s ON t.service_id = s.id
                 WHERE t.sender_wallet_id = ?
                    OR t.receiver_wallet_id = ?
@@ -259,30 +369,214 @@ public class UserWalletController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/services")
+    public ResponseEntity<Map<String, Object>> getActiveServices(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        AuthResult authResult = authenticate(authorizationHeader);
+        if (authResult.errorResponse() != null) {
+            return authResult.errorResponse();
+        }
+
+        List<Map<String, Object>> serviceRows = jdbcTemplate.queryForList(
+                """
+                SELECT
+                    id,
+                    name,
+                    price,
+                    description,
+                    is_active
+                FROM services
+                WHERE is_active = TRUE
+                ORDER BY id ASC
+                """
+        );
+
+        List<Map<String, Object>> services = serviceRows.stream()
+                .map(this::buildService)
+                .toList();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("services", services);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/payments")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> payService(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody PaymentRequest request
+    ) {
+        AuthResult authResult = authenticate(authorizationHeader);
+        if (authResult.errorResponse() != null) {
+            return authResult.errorResponse();
+        }
+
+        if (request == null || request.serviceId() == null || request.serviceId() <= 0) {
+            return error("Service is required", HttpStatus.BAD_REQUEST);
+        }
+
+        List<Map<String, Object>> serviceRows = jdbcTemplate.queryForList(
+                """
+                SELECT
+                    id,
+                    name,
+                    price,
+                    description,
+                    is_active
+                FROM services
+                WHERE id = ?
+                LIMIT 1
+                """,
+                request.serviceId()
+        );
+
+        if (serviceRows.isEmpty()) {
+            return error("Service not found", HttpStatus.NOT_FOUND);
+        }
+
+        Map<String, Object> service = serviceRows.get(0);
+        if (!isTruthy(service.get("is_active"))) {
+            return error("Service is not available", HttpStatus.CONFLICT);
+        }
+
+        BigDecimal amount = (BigDecimal) service.get("price");
+        String serviceName = String.valueOf(service.get("name"));
+        String description = request.description() == null || request.description().isBlank()
+                ? "Payment for " + serviceName
+                : request.description().trim();
+        if (description.length() > 255) {
+            return error("Description must be at most 255 characters", HttpStatus.BAD_REQUEST);
+        }
+
+        List<Map<String, Object>> wallets = jdbcTemplate.queryForList(
+                "SELECT id, balance FROM wallets WHERE user_id = ? FOR UPDATE",
+                authResult.user().id()
+        );
+
+        if (wallets.isEmpty()) {
+            return error("Wallet not found", HttpStatus.BAD_REQUEST);
+        }
+
+        Map<String, Object> wallet = wallets.get(0);
+        int walletId = ((Number) wallet.get("id")).intValue();
+        BigDecimal balanceBefore = (BigDecimal) wallet.get("balance");
+
+        if (balanceBefore.compareTo(amount) < 0) {
+            return error("Insufficient wallet balance.", HttpStatus.BAD_REQUEST);
+        }
+
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+        String transactionCode = buildTransactionCode(authResult.user().id());
+
+        jdbcTemplate.update(
+                "UPDATE wallets SET balance = ? WHERE id = ?",
+                balanceAfter,
+                walletId
+        );
+
+        jdbcTemplate.update(
+                """
+                INSERT INTO transactions (
+                    transaction_code,
+                    sender_wallet_id,
+                    receiver_wallet_id,
+                    service_id,
+                    amount,
+                    balance_before,
+                    balance_after,
+                    type,
+                    status,
+                    description,
+                    created_by
+                )
+                VALUES (?, ?, NULL, ?, ?, ?, ?, 'payment', 'success', ?, ?)
+                """,
+                transactionCode,
+                walletId,
+                request.serviceId(),
+                amount,
+                balanceBefore,
+                balanceAfter,
+                description,
+                authResult.user().id()
+        );
+
+        Map<String, Object> transactionRow = jdbcTemplate.queryForMap(
+                """
+                SELECT
+                    t.id,
+                    t.transaction_code,
+                    t.type,
+                    t.sender_wallet_id,
+                    sender_wallet.user_id AS sender_user_id,
+                    sender_user.phone AS sender_phone,
+                    sender_profile.full_name AS sender_name,
+                    t.receiver_wallet_id,
+                    receiver_wallet.user_id AS receiver_user_id,
+                    receiver_user.phone AS receiver_phone,
+                    receiver_profile.full_name AS receiver_name,
+                    t.service_id,
+                    s.name AS service_name,
+                    t.amount,
+                    t.balance_before,
+                    t.balance_after,
+                    t.status,
+                    t.description,
+                    t.created_at
+                FROM transactions t
+                LEFT JOIN wallets sender_wallet ON t.sender_wallet_id = sender_wallet.id
+                LEFT JOIN users sender_user ON sender_wallet.user_id = sender_user.id
+                LEFT JOIN user_profiles sender_profile ON sender_user.id = sender_profile.user_id
+                LEFT JOIN wallets receiver_wallet ON t.receiver_wallet_id = receiver_wallet.id
+                LEFT JOIN users receiver_user ON receiver_wallet.user_id = receiver_user.id
+                LEFT JOIN user_profiles receiver_profile ON receiver_user.id = receiver_profile.user_id
+                LEFT JOIN services s ON t.service_id = s.id
+                WHERE t.transaction_code = ?
+                """,
+                transactionCode
+        );
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Payment completed successfully");
+        response.put("balance", balanceAfter);
+        response.put("transaction", buildTransaction(transactionRow));
+        return ResponseEntity.ok(response);
+    }
+
     private AuthResult authenticate(String authorizationHeader) {
         Integer userId = extractUserId(authorizationHeader);
         if (userId == null) {
-            return new AuthResult(null, error("Unauthorized", HttpStatus.UNAUTHORIZED));
+            return new AuthResult(null, error("UNAUTHORIZED", "Unauthorized", HttpStatus.UNAUTHORIZED));
         }
 
         List<Map<String, Object>> users = jdbcTemplate.queryForList(
-                "SELECT id, status FROM users WHERE id = ? LIMIT 1",
+                "SELECT id, role, status FROM users WHERE id = ? LIMIT 1",
                 userId
         );
 
         if (users.isEmpty()) {
-            return new AuthResult(null, error("Unauthorized", HttpStatus.UNAUTHORIZED));
+            return new AuthResult(null, error("UNAUTHORIZED", "Unauthorized", HttpStatus.UNAUTHORIZED));
         }
 
         Map<String, Object> user = users.get(0);
         String status = String.valueOf(user.get("status"));
+        String role = String.valueOf(user.get("role"));
 
         if ("blocked".equalsIgnoreCase(status)) {
-            return new AuthResult(null, error("Account blocked", HttpStatus.FORBIDDEN));
+            return new AuthResult(null, error(
+                    "ACCOUNT_BLOCKED",
+                    "Your account has been blocked by an administrator.",
+                    HttpStatus.FORBIDDEN
+            ));
         }
 
         if (!"active".equalsIgnoreCase(status)) {
-            return new AuthResult(null, error("Unauthorized", HttpStatus.UNAUTHORIZED));
+            return new AuthResult(null, error("UNAUTHORIZED", "Unauthorized", HttpStatus.UNAUTHORIZED));
+        }
+
+        if (!"user".equalsIgnoreCase(role)) {
+            return new AuthResult(null, error("FORBIDDEN_ROLE", "User wallet access required", HttpStatus.FORBIDDEN));
         }
 
         return new AuthResult(new AuthenticatedUser(userId), null);
@@ -314,6 +608,26 @@ public class UserWalletController {
         return "TXN" + LocalDateTime.now().format(TRANSACTION_CODE_FORMAT) + userId;
     }
 
+    private String validateDepositAmount(BigDecimal amount) {
+        if (amount == null) {
+            return "Amount is required";
+        }
+
+        if (amount.compareTo(MIN_DEPOSIT_AMOUNT) < 0) {
+            return "Amount must be at least 1.00";
+        }
+
+        if (amount.compareTo(MAX_DEPOSIT_AMOUNT) > 0) {
+            return "Amount must be at most 10000000.00";
+        }
+
+        if (amount.stripTrailingZeros().scale() > 2) {
+            return "Amount can have at most 2 decimal places";
+        }
+
+        return null;
+    }
+
     private Map<String, Object> buildUser(Map<String, Object> row) {
         Map<String, Object> user = new HashMap<>();
         user.put("id", row.get("id"));
@@ -331,13 +645,30 @@ public class UserWalletController {
         return wallet;
     }
 
+    private Map<String, Object> buildService(Map<String, Object> row) {
+        Map<String, Object> service = new HashMap<>();
+        service.put("id", row.get("id"));
+        service.put("name", row.get("name"));
+        service.put("price", row.get("price"));
+        service.put("description", row.get("description"));
+        service.put("isActive", isTruthy(row.get("is_active")));
+        return service;
+    }
+
     private Map<String, Object> buildTransaction(Map<String, Object> row) {
         Map<String, Object> transaction = new HashMap<>();
         transaction.put("id", row.get("id"));
         transaction.put("transactionCode", row.get("transaction_code"));
         transaction.put("type", row.get("type"));
+        transaction.put("senderWalletId", row.get("sender_wallet_id"));
+        transaction.put("senderUserId", row.get("sender_user_id"));
         transaction.put("senderPhone", row.get("sender_phone"));
+        transaction.put("senderName", row.get("sender_name"));
+        transaction.put("receiverWalletId", row.get("receiver_wallet_id"));
+        transaction.put("receiverUserId", row.get("receiver_user_id"));
         transaction.put("receiverPhone", row.get("receiver_phone"));
+        transaction.put("receiverName", row.get("receiver_name"));
+        transaction.put("serviceId", row.get("service_id"));
         transaction.put("serviceName", row.get("service_name"));
         transaction.put("amount", row.get("amount"));
         transaction.put("balanceBefore", row.get("balance_before"));
@@ -354,6 +685,25 @@ public class UserWalletController {
         return ResponseEntity.status(status).body(response);
     }
 
+    private ResponseEntity<Map<String, Object>> error(String code, String message, HttpStatus status) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("code", code);
+        response.put("message", message);
+        return ResponseEntity.status(status).body(response);
+    }
+
+    private boolean isTruthy(Object value) {
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+
+        if (value instanceof Number numberValue) {
+            return numberValue.intValue() != 0;
+        }
+
+        return Boolean.parseBoolean(String.valueOf(value));
+    }
+
     private record AuthenticatedUser(int id) {
     }
 
@@ -364,5 +714,11 @@ public class UserWalletController {
     }
 
     public record TransferRequest(String receiverPhone, BigDecimal amount, String description) {
+    }
+
+    public record DepositRequest(BigDecimal amount, String description) {
+    }
+
+    public record PaymentRequest(Integer serviceId, String description) {
     }
 }

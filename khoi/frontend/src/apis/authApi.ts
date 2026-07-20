@@ -14,9 +14,10 @@ export type LoginPayload = {
 export type AuthUser = {
   id: number
   phone: string
-  role: string
-  status: string
-  fullName?: string
+  role: 'user' | 'admin'
+  status: 'active' | 'blocked'
+  fullName?: string | null
+  position?: string | null
 }
 
 export type Wallet = {
@@ -40,6 +41,16 @@ export const authApi = {
 
   login: async (data: LoginPayload) => {
     const response = await axiosClient.post<AuthResponse>('/auth/login', data)
+    return response.data
+  },
+
+  getCurrentAccount: async () => {
+    const token = localStorage.getItem('token')
+    const response = await axiosClient.get<AuthUser>('/account/me', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
     return response.data
   },
 }

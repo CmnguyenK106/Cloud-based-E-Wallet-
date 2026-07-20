@@ -1,16 +1,31 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import axios from 'axios'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import './App.css'
+import { accountApi, accountToAuthUser } from './apis/accountApi'
 import { walletApi } from './apis/walletApi'
+import AdminRoute from './components/routes/AdminRoute'
+import ProtectedRoute from './components/routes/ProtectedRoute'
+import UserRoute from './components/routes/UserRoute'
+import { ToastProvider } from './components/toast/ToastProvider'
 import DashboardPage, { type WalletTab } from './pages/DashboardPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
+import ProfilePage from './pages/ProfilePage'
 import RegisterPage from './pages/RegisterPage'
+import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import AdminUsersPage from './pages/admin/AdminUsersPage'
+import AdminTransactionsPage from './pages/admin/AdminTransactionsPage'
 import { useAuthStore } from './store/authStore'
 
 type AppHeaderProps = {
   activeTab: WalletTab
   setActiveTab: (tab: WalletTab) => void
+}
+
+type SessionErrorResponse = {
+  code?: string
+  message?: string
 }
 
 function formatBalance(balance?: number) {
@@ -19,6 +34,85 @@ function formatBalance(balance?: number) {
   }
 
   return Number(balance).toFixed(2)
+}
+
+function SessionMonitor() {
+  const navigate = useNavigate()
+  const token = useAuthStore((state) => state.token)
+  const logout = useAuthStore((state) => state.logout)
+  const setAccount = useAuthStore((state) => state.setAccount)
+  const intervalRef = useRef<number | null>(null)
+  const isCheckingRef = useRef(false)
+
+  useEffect(() => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+
+    if (!token) {
+      return undefined
+    }
+
+    let isMounted = true
+
+    const clearSession = (message: string) => {
+      if (!isMounted) {
+        return
+      }
+
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+
+      sessionStorage.setItem('authMessage', message)
+      logout()
+      navigate('/login', { replace: true })
+    }
+
+    const checkAccount = async () => {
+      if (isCheckingRef.current) {
+        return
+      }
+
+      isCheckingRef.current = true
+
+      try {
+        const account = await accountApi.getCurrentAccount()
+        if (isMounted) {
+          setAccount(accountToAuthUser(account))
+        }
+      } catch (err) {
+        if (axios.isAxiosError<SessionErrorResponse>(err)) {
+          const code = err.response?.data?.code
+          if (code === 'ACCOUNT_BLOCKED') {
+            clearSession(
+              err.response?.data?.message ||
+                'Your account has been blocked by an administrator.',
+            )
+          } else if (code === 'UNAUTHORIZED') {
+            clearSession('Your session has expired. Please log in again.')
+          }
+        }
+      } finally {
+        isCheckingRef.current = false
+      }
+    }
+
+    void checkAccount()
+    intervalRef.current = window.setInterval(checkAccount, 10000)
+
+    return () => {
+      isMounted = false
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [logout, navigate, setAccount, token])
+
+  return null
 }
 
 function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
@@ -31,9 +125,11 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
   const balanceText = formatBalance(wallet?.balance)
+  const isUser = user?.role === 'user'
+  const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
-    if (!token) {
+    if (!token || user?.role !== 'user') {
       return
     }
 
@@ -41,7 +137,7 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
       .getMyWallet()
       .then((data) => setWalletData(data.user, data.wallet))
       .catch((err) => console.error(err))
-  }, [token, setWalletData])
+  }, [token, user?.role, setWalletData])
 
   const openDashboardTab = (tab: WalletTab) => {
     setActiveTab(tab)
@@ -52,6 +148,11 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
     logout()
     setIsDropdownOpen(false)
     navigate('/login')
+  }
+
+  const openProfile = () => {
+    setIsDropdownOpen(false)
+    navigate('/profile')
   }
 
   return (
@@ -69,9 +170,28 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
 
         <nav className="nav-menu" aria-label="Main navigation">
           <Link to="/">Home</Link>
-          <button onClick={() => openDashboardTab('wallet')}>Wallet</button>
-          <a href="#transactions">Transactions</a>
-          <button onClick={() => openDashboardTab('services')}>Services</button>
+          {isUser && (
+            <>
+              <button onClick={() => openDashboardTab('wallet')}>Wallet</button>
+              <button onClick={() => openDashboardTab('history')}>
+                Transactions
+              </button>
+              <button onClick={() => openDashboardTab('deposit')}>
+                Deposit
+              </button>
+              <button onClick={() => openDashboardTab('services')}>
+                Services
+              </button>
+            </>
+          )}
+          {isAdmin && (
+            <>
+              <Link to="/admin">Admin Dashboard</Link>
+              <Link to="/admin/users">Users</Link>
+              <Link to="/admin/transactions">Transactions</Link>
+              <button onClick={handleLogout}>Logout</button>
+            </>
+          )}
         </nav>
 
         <div className="account-menu">
@@ -107,10 +227,21 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
                     <span>Status</span>
                     <strong>{user?.status || 'Unknown'}</strong>
                   </div>
-                  <div>
-                    <span>Current balance</span>
-                    <strong>{balanceText}</strong>
-                  </div>
+                  {isAdmin && (
+                    <div>
+                      <span>Position</span>
+                      <strong>{user?.position || 'N/A'}</strong>
+                    </div>
+                  )}
+                  {isUser && (
+                    <div>
+                      <span>Current balance</span>
+                      <strong>{balanceText}</strong>
+                    </div>
+                  )}
+                  <button className="secondary-button" onClick={openProfile}>
+                    Edit Profile
+                  </button>
                   <button className="logout-button" onClick={handleLogout}>
                     Logout
                   </button>
@@ -125,62 +256,102 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
         </div>
       </header>
 
-      <div className="wallet-nav-bar">
-        <div className="wallet-nav-inner">
-          <button
-            className={activeTab === 'wallet' ? 'active' : ''}
-            onClick={() => openDashboardTab('wallet')}
-          >
-            Wallet Info
-          </button>
-          <button
-            className={activeTab === 'transfer' ? 'active' : ''}
-            onClick={() => openDashboardTab('transfer')}
-          >
-            Transfer Money
-          </button>
-          <button
-            className={activeTab === 'services' ? 'active' : ''}
-            onClick={() => openDashboardTab('services')}
-          >
-            Services
-          </button>
+      {isUser && (
+        <div className="wallet-nav-bar">
+          <div className="wallet-nav-inner">
+            <button
+              className={activeTab === 'wallet' ? 'active' : ''}
+              onClick={() => openDashboardTab('wallet')}
+            >
+              Wallet Info
+            </button>
+            <button
+              className={activeTab === 'transfer' ? 'active' : ''}
+              onClick={() => openDashboardTab('transfer')}
+            >
+              Transfer Money
+            </button>
+            <button
+              className={activeTab === 'deposit' ? 'active' : ''}
+              onClick={() => openDashboardTab('deposit')}
+            >
+              Deposit
+            </button>
+            <button
+              className={activeTab === 'services' ? 'active' : ''}
+              onClick={() => openDashboardTab('services')}
+            >
+              Services
+            </button>
+            <button
+              className={activeTab === 'history' ? 'active' : ''}
+              onClick={() => openDashboardTab('history')}
+            >
+              Transaction History
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </>
   )
-}
-
-function ProtectedRoute({ children }: { children: ReactNode }) {
-  const token = useAuthStore((state) => state.token)
-
-  if (!token) {
-    return <Navigate to="/login" replace />
-  }
-
-  return children
 }
 
 function App() {
   const [activeTab, setActiveTab] = useState<WalletTab>('wallet')
 
   return (
-    <div className="app-shell">
-      <AppHeader activeTab={activeTab} setActiveTab={setActiveTab} />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <DashboardPage activeTab={activeTab} />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </div>
+    <ToastProvider>
+      <div className="app-shell">
+        <SessionMonitor />
+        <AppHeader activeTab={activeTab} setActiveTab={setActiveTab} />
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <UserRoute>
+                <DashboardPage activeTab={activeTab} />
+              </UserRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminDashboardPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <AdminRoute>
+                <AdminUsersPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/transactions"
+            element={
+              <AdminRoute>
+                <AdminTransactionsPage />
+              </AdminRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </ToastProvider>
   )
 }
 

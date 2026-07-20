@@ -22,23 +22,45 @@ export type TransferResponse = {
   }
 }
 
+export type DepositPayload = {
+  amount: number
+  description?: string
+}
+
+export type WalletTransactionType = 'deposit' | 'transfer' | 'payment' | string
+
+export type WalletTransactionStatus = 'success' | 'failed' | string
+
 export type WalletTransaction = {
   id: number
   transactionCode: string
-  type: string
-  senderPhone?: string
-  receiverPhone?: string
-  serviceName?: string
+  type: WalletTransactionType
+  senderWalletId: number | null
+  senderUserId: number | null
+  senderPhone: string | null
+  senderName: string | null
+  receiverWalletId: number | null
+  receiverUserId: number | null
+  receiverPhone: string | null
+  receiverName: string | null
+  serviceId: number | null
+  serviceName: string | null
   amount: number
-  balanceBefore?: number
-  balanceAfter?: number
-  status: string
-  description?: string
-  createdAt: string
+  balanceBefore: number | null
+  balanceAfter: number | null
+  status: WalletTransactionStatus
+  description: string | null
+  createdAt: string | null
 }
 
 export type TransactionsResponse = {
   transactions: WalletTransaction[]
+}
+
+export type DepositResponse = {
+  message: string
+  balance: number
+  transaction: WalletTransaction
 }
 
 const getAuthHeaders = () => {
@@ -63,6 +85,17 @@ export const walletApi = {
   transferMoney: async (data: TransferPayload) => {
     const response = await axiosClient.post<TransferResponse>(
       '/user/wallet/transfer',
+      data,
+      {
+        headers: getAuthHeaders(),
+      },
+    )
+    return response.data
+  },
+
+  depositMoney: async (data: DepositPayload) => {
+    const response = await axiosClient.post<DepositResponse>(
+      '/user/wallet/deposit',
       data,
       {
         headers: getAuthHeaders(),
