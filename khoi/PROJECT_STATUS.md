@@ -429,13 +429,14 @@ Get-Content -Raw database/migrations/V001__email_verification_and_password_reset
 
 Use the actual configured MySQL service name and credentials if they differ. Existing regular users receive unique `@local.invalid` placeholder emails and remain verified so their wallet access is preserved; update those placeholders manually if those accounts need password recovery.
 
-Most recent automated validation on 2026-07-21 after resolving the infrastructure-readiness blockers:
+Final pre-AWS repository verification completed on 2026-07-21 after resolving the infrastructure-readiness blockers:
 
 - Frontend build: passed
 - Frontend lint: passed
 - Backend tests (`mvn clean test`): passed (48 total, including production-profile endpoint isolation)
 - Backend compile (`mvn -DskipTests compile`): passed
 - Backend Docker image (`docker build -t ewallet-backend:final-verify backend`): passed with Docker Server 29.4.1
+- Production-profile container health: passed; `GET http://localhost:18080/actuator/health` returned `UP` with liveness and readiness groups, and the temporary container was removed.
 - Git whitespace validation (`git diff --check`): passed
 - Local environment tracking: `.env.local` is no longer tracked, remains available locally, and is ignored together with other real environment files; `.env.example` remains tracked.
 - Secret handling: the previous local JWT secret must be treated as exposed because `.env.local` exists in Git history and must never be reused in AWS. No replacement production secret is committed.
@@ -447,6 +448,24 @@ Deployment readiness summary:
 - **TEST ENDPOINT BLOCKER: RESOLVED** — `/api/test/**` handlers are limited to the `local` and `test` profiles and return `404` under `prod`.
 - **AWS INFRASTRUCTURE DEPLOYMENT READINESS: READY**
 - **COMPLETE PRODUCTION APPLICATION READINESS: NOT READY — production email delivery with Amazon SES is still pending**
+
+Exact next deployment order:
+
+1. Review and commit the verified working tree.
+2. Create RDS MySQL.
+3. Apply `database/rds/001_schema.sql`.
+4. Apply a local untracked copy of the admin seed after replacing placeholders.
+5. Apply `database/rds/003_services_seed.sql`.
+6. Create and configure EC2.
+7. Run the Spring Boot backend with the `prod` profile.
+8. Connect EC2 to RDS.
+9. Deploy the React build to S3.
+10. Configure CloudFront.
+11. Configure the production API URL and CORS.
+12. Configure CloudWatch and AWS Budgets.
+13. Implement and verify Amazon SES.
+14. Run complete cloud regression tests.
+15. Complete deployment evidence and documentation.
 
 Focused automated coverage added:
 
