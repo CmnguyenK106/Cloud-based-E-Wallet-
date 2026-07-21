@@ -1,0 +1,6 @@
+.env.local
+.env
+backend/target/
+frontend/dist/
+frontend/node_modules/
+*.log

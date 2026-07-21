@@ -88,7 +88,7 @@ The local MVP implements account management, wallet operations, service payments
 
 ## 5. In Progress
 
-No local-MVP product feature or verification task is currently in progress. Local email verification and password reset were implemented and automatically verified on 2026-07-20. The existing persistent MySQL volume still requires the documented non-destructive migration before this feature can be run manually.
+No local-MVP product feature or verification task is currently in progress. AWS deployment preparation was completed locally on 2026-07-20 without creating AWS resources. The backend production image, environment-driven configuration, public health endpoint, and production-safe RDS schema were verified locally.
 
 The next recommended work is email registration/verification and password-reset functionality. Production-grade idempotency, real-database concurrency stress tests, and broader financial audit work remain scheduled for Phase 3.
 
@@ -184,8 +184,7 @@ Status: **signed JWT access-token implementation verified locally**.
 
 - JWT access tokens are stored in `localStorage`, so an XSS defect could expose them.
 - There is no refresh-token flow or server-side per-token revocation; account status changes are enforced through the database check on each protected request.
-- Configuration and development credentials are committed in local configuration files rather than injected from environment variables.
-- Frontend API base URL and backend CORS origin are hardcoded for local development.
+- Production secrets and database configuration require external environment/secret management; no AWS secret store is configured yet.
 - Local development depends on Docker MySQL.
 - Deposit is simulated and does not contact a provider.
 - No real payment provider, webhook, reconciliation, refund, or payment-order workflow exists.
@@ -194,7 +193,7 @@ Status: **signed JWT access-token implementation verified locally**.
 - There is no audit log for admin actions.
 - There is no idempotency key or duplicate-request protection for wallet operations.
 - Automated coverage now includes a Spring context test, focused isolated wallet-controller safety tests, and JWT/Spring Security integration tests; it does not yet include browser E2E tests or real-MySQL concurrency stress tests.
-- No AWS deployment, SES integration, SQS workflow, Lambda feature, or production observability is implemented.
+- No AWS resources, SES integration, centralized logs/metrics, alarms, or production observability infrastructure has been created.
 - This application must not handle real money in its current state.
 
 ## 11. Known Issues
@@ -204,7 +203,6 @@ Status: **signed JWT access-token implementation verified locally**.
 | High | Core mutation endpoints lack idempotency | Double submissions can create duplicate operations; add request-level idempotency in Phase 3 |
 | High | Concurrency coverage is isolated rather than a real-MySQL stress test | Deterministic tests verify sender locking behavior, but database-level stress testing remains Phase 3 work |
 | Medium | `/api/test/**` endpoints are unauthenticated | Remove or restrict them before deployment |
-| Medium | DB/API/CORS configuration is hardcoded | Move to environment-specific configuration |
 | Medium | SQL/business logic lives in controllers | Refactor when complexity or test coverage grows |
 | Medium | Duplicate service names are application-checked only | Concurrent creates could race; consider a normalized unique key in a migration |
 | Medium | UTF-8/mojibake appears in existing SQL comments and older documentation when read by some tools | Verify actual file encoding and browser/API output before rewriting data |
@@ -212,7 +210,7 @@ Status: **signed JWT access-token implementation verified locally**.
 
 ## 12. Next Recommended Task
 
-**Continue Phase 2 with rate limiting and environment-specific configuration, then implement the Amazon SES email-service adapter.**
+**Complete the remaining security/deployment review (rate limiting, test endpoints, secret storage, HTTPS/networking), then perform a controlled initial AWS deployment.**
 
 JWT access-token authentication is now ready as the base for that work. Keep email business logic local first and integrate Amazon SES only after deployment preparation.
 
@@ -237,8 +235,8 @@ Verification scope note: the UTF-8 checks included fatal byte decoding with no r
 4. [x] Add email to registration.
 5. [x] Add email verification and resend.
 6. [x] Add forgot/reset-password flows.
-7. Move secrets and credentials to environment variables.
-8. Restrict CORS by environment.
+7. [x] Move secrets and credentials to environment variables.
+8. [x] Restrict CORS by environment.
 9. Remove or protect test endpoints.
 10. Add basic rate limiting if practical.
 11. Review password and authentication error handling.
@@ -261,12 +259,12 @@ Do not introduce real-money behavior before this phase is stable.
 
 ### Phase 4 — Deployment Preparation
 
-1. Move frontend API URL, database settings, and CORS to environment-specific configuration; keep the JWT secret environment-only.
-2. Add development and production Spring profiles.
-3. Dockerize the backend and decide whether the frontend also needs a runtime container.
-4. Confirm repeatable production builds.
-5. Add deployment documentation and health checks.
-6. Introduce a database migration strategy.
+1. [x] Move frontend API URL, database settings, and CORS to environment-specific configuration; keep the JWT secret environment-only.
+2. [x] Add development and production Spring profiles.
+3. [x] Dockerize the backend; retain the frontend as a static S3/CloudFront build.
+4. [x] Confirm repeatable production builds.
+5. [x] Add deployment documentation and health checks.
+6. [x] Add numbered non-destructive schema/migration scripts and an RDS initialization guide.
 7. Document backup and recovery.
 8. Audit the repository for committed secrets.
 
@@ -432,12 +430,13 @@ Get-Content -Raw database/migrations/V001__email_verification_and_password_reset
 
 Use the actual configured MySQL service name and credentials if they differ. Existing regular users receive unique `@local.invalid` placeholder emails and remain verified so their wallet access is preserved; update those placeholders manually if those accounts need password recovery.
 
-Most recent automated validation on 2026-07-20 after local email verification and password-reset implementation:
+Most recent automated validation on 2026-07-20 after AWS deployment preparation:
 
 - Frontend build: passed
 - Frontend lint: passed
-- Backend tests (`mvn clean test`): passed (44 total: 4 token-service tests, 11 email-auth controller tests, 12 wallet safety/history/verification tests, 1 application-context test, and 16 JWT/Spring Security integration tests)
+- Backend tests (`mvn clean test`, followed by `mvn test` after adding the health assertion): passed (45 total, including a public Actuator health-endpoint test)
 - Backend compile (`mvn -DskipTests compile`): passed
+- Backend Docker image (`docker build -t ewallet-backend:local backend`): passed with Docker Server 29.4.1
 
 Focused automated coverage added:
 
@@ -458,6 +457,7 @@ Focused automated coverage added:
 - Unverified users can log in but receive `EMAIL_NOT_VERIFIED` for deposit, transfer, and payment
 - Forgot-password responses do not reveal account existence
 - Password reset stores a BCrypt hash that matches the new password and rejects the old password
+- Public `GET /actuator/health` returns `UP` without authentication
 
 JWT/Spring Security coverage added:
 
@@ -472,7 +472,7 @@ JWT/Spring Security coverage added:
 - A token issued before an account is blocked is rejected after the database status changes
 - Login and registration endpoints remain public
 
-The email/JWT verification pass was automated; no new manual browser test was executed during this change, and the persistent database migration was not executed automatically.
+The deployment-preparation checks were automated; no AWS resource was created, no database schema was applied, and no new manual browser test was executed during this change.
 
 ## 18. AI Handoff Instructions
 

@@ -68,6 +68,7 @@ Write-Host "Starting Spring Boot backend..." -ForegroundColor Green
 $backendCommand = @"
 `$env:JWT_SECRET='$($env:JWT_SECRET)'
 `$env:JWT_EXPIRATION='$($env:JWT_EXPIRATION)'
+`$env:SPRING_PROFILES_ACTIVE='local'
 Set-Location '$root\backend'
 cmd /c mvnw.cmd spring-boot:run
 "@

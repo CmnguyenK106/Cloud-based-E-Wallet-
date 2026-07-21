@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = {"jwt.secret=test-only-secret!that-is-at-least-32-bytes-long", "jwt.expiration-seconds=3600"})
+@SpringBootTest(properties = {"spring.profiles.active=local", "jwt.secret=test-only-secret!that-is-at-least-32-bytes-long", "jwt.expiration-seconds=3600"})
 @AutoConfigureMockMvc
 class JwtAuthenticationIntegrationTests {
     private static final String SECRET = "test-only-secret!that-is-at-least-32-bytes-long";
@@ -118,6 +118,12 @@ class JwtAuthenticationIntegrationTests {
                 .andExpect(status().isBadRequest());
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test void actuatorHealthEndpointIsPublic() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
     }
 
     private String token(int id, Instant expiration, String secret) {
