@@ -6,7 +6,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,7 +24,6 @@ import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/user/wallet")
-@CrossOrigin(origins = "http://localhost:5173")
 public class UserWalletController {
 
     private static final Pattern PHONE_PATTERN = Pattern.compile("^0[0-9]{9}$");

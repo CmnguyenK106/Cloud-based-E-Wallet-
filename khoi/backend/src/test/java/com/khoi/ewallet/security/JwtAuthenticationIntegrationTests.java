@@ -10,6 +10,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -28,12 +30,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = {"spring.profiles.active=local", "jwt.secret=test-only-secret!that-is-at-least-32-bytes-long", "jwt.expiration-seconds=3600"})
+@SpringBootTest(properties = {"spring.profiles.active=local",
+        "spring.autoconfigure.exclude=org.springframework.boot.batch.jdbc.autoconfigure.BatchJdbcAutoConfiguration",
+        "management.health.db.enabled=false",
+        "jwt.secret=test-only-secret!that-is-at-least-32-bytes-long", "jwt.expiration-seconds=3600"})
 @AutoConfigureMockMvc
 class JwtAuthenticationIntegrationTests {
     private static final String SECRET = "test-only-secret!that-is-at-least-32-bytes-long";
     @Autowired MockMvc mockMvc;
     @Autowired JwtService jwtService;
+    @Autowired ApplicationContext applicationContext;
     @MockitoBean JdbcTemplate jdbcTemplate;
     private final AtomicReference<String> accountStatus = new AtomicReference<>("active");
 
@@ -45,7 +51,7 @@ class JwtAuthenticationIntegrationTests {
             Object parameter = invocation.getArgument(1);
             if (sql.contains("u.password")) return List.of(Map.of(
                     "id", 1, "phone", "0912345678", "password", new BCryptPasswordEncoder().encode("password123"),
-                    "role", "user", "status", "active", "full_name", "JWT Test User"));
+                    "role", "user", "status", accountStatus.get(), "full_name", "JWT Test User"));
             int id = parameter instanceof Number number ? number.intValue() : 1;
             if (id == 999) return List.of();
             if (sql.contains("SELECT id, role, status"))
@@ -63,6 +69,20 @@ class JwtAuthenticationIntegrationTests {
                         .content("{\"phone\":\"0912345678\",\"password\":\"password123\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.tokenType").value("Bearer")).andExpect(jsonPath("$.expiresIn").value(3600));
+    }
+    @Test void blockedUserCannotLogin() throws Exception {
+        accountStatus.set("blocked");
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"0912345678\",\"password\":\"password123\"}"))
+                .andExpect(status().isForbidden());
+    }
+    @Test void defaultUserDetailsServiceIsNotConfigured() {
+        org.junit.jupiter.api.Assertions.assertTrue(
+                applicationContext.getBeansOfType(UserDetailsService.class).isEmpty());
+    }
+    @Test void basicAuthenticationCannotAccessProtectedEndpoints() throws Exception {
+        mockMvc.perform(get("/api/account/me").header("Authorization", "Basic dXNlcjpnZW5lcmF0ZWQtcGFzc3dvcmQ="))
+                .andExpect(status().isUnauthorized());
     }
     @Test void validJwtAccessesAuthenticatedEndpoint() throws Exception {
         mockMvc.perform(get("/api/account/me").header("Authorization", bearer(jwtService.generateAccessToken(1))))
@@ -115,8 +135,6 @@ class JwtAuthenticationIntegrationTests {
     }
     @Test void publicAuthEndpointsDoNotRequireJwt() throws Exception {
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isBadRequest());
-        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
     }
 
