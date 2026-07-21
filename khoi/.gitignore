@@ -1,5 +1,11 @@
-.env.local
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
 backend/target/
 frontend/dist/
 frontend/node_modules/

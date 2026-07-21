@@ -1,6 +1,6 @@
 # Cloud E-wallet Project Status
 
-Last source review: 2026-07-20
+Last source review: 2026-07-21
 
 This file is the handoff reference for future development sessions. Feature status below was checked against the current source, not copied from older project notes.
 
@@ -88,7 +88,7 @@ The local MVP implements account management, wallet operations, service payments
 
 ## 5. In Progress
 
-No local-MVP product feature or verification task is currently in progress. AWS deployment preparation was completed locally on 2026-07-20 without creating AWS resources. The backend production image, environment-driven configuration, public health endpoint, and production-safe RDS schema were verified locally.
+No local-MVP product feature or verification task is currently in progress. AWS deployment preparation was completed locally without creating AWS resources. The backend production image, environment-driven configuration, public health endpoint, production-safe RDS schema, and production exclusion of development-only test endpoints were verified locally on 2026-07-21.
 
 The next recommended work is email registration/verification and password-reset functionality. Production-grade idempotency, real-database concurrency stress tests, and broader financial audit work remain scheduled for Phase 3.
 
@@ -145,7 +145,7 @@ The schema includes foreign keys and indexes for transaction relationships, time
 | PATCH | `/api/admin/services/{serviceId}` | Edit service fields |
 | PATCH | `/api/admin/services/{serviceId}/status` | Activate/deactivate service |
 
-Development-only `/api/test/**` endpoints also exist and must be removed or protected before deployment.
+Development-only `/api/test/**` endpoints are registered only under the `local` and `test` Spring profiles. A production-profile integration test verifies that these routes are not registered in `prod`.
 
 ## 8. Frontend Routes
 
@@ -202,7 +202,6 @@ Status: **signed JWT access-token implementation verified locally**.
 | --- | --- | --- |
 | High | Core mutation endpoints lack idempotency | Double submissions can create duplicate operations; add request-level idempotency in Phase 3 |
 | High | Concurrency coverage is isolated rather than a real-MySQL stress test | Deterministic tests verify sender locking behavior, but database-level stress testing remains Phase 3 work |
-| Medium | `/api/test/**` endpoints are unauthenticated | Remove or restrict them before deployment |
 | Medium | SQL/business logic lives in controllers | Refactor when complexity or test coverage grows |
 | Medium | Duplicate service names are application-checked only | Concurrent creates could race; consider a normalized unique key in a migration |
 | Medium | UTF-8/mojibake appears in existing SQL comments and older documentation when read by some tools | Verify actual file encoding and browser/API output before rewriting data |
@@ -237,7 +236,7 @@ Verification scope note: the UTF-8 checks included fatal byte decoding with no r
 6. [x] Add forgot/reset-password flows.
 7. [x] Move secrets and credentials to environment variables.
 8. [x] Restrict CORS by environment.
-9. Remove or protect test endpoints.
+9. [x] Restrict test endpoints to the `local` and `test` Spring profiles.
 10. Add basic rate limiting if practical.
 11. Review password and authentication error handling.
 
@@ -430,13 +429,24 @@ Get-Content -Raw database/migrations/V001__email_verification_and_password_reset
 
 Use the actual configured MySQL service name and credentials if they differ. Existing regular users receive unique `@local.invalid` placeholder emails and remain verified so their wallet access is preserved; update those placeholders manually if those accounts need password recovery.
 
-Most recent automated validation on 2026-07-20 after AWS deployment preparation:
+Most recent automated validation on 2026-07-21 after resolving the infrastructure-readiness blockers:
 
 - Frontend build: passed
 - Frontend lint: passed
-- Backend tests (`mvn clean test`, followed by `mvn test` after adding the health assertion): passed (45 total, including a public Actuator health-endpoint test)
+- Backend tests (`mvn clean test`): passed (48 total, including production-profile endpoint isolation)
 - Backend compile (`mvn -DskipTests compile`): passed
-- Backend Docker image (`docker build -t ewallet-backend:local backend`): passed with Docker Server 29.4.1
+- Backend Docker image (`docker build -t ewallet-backend:final-verify backend`): passed with Docker Server 29.4.1
+- Git whitespace validation (`git diff --check`): passed
+- Local environment tracking: `.env.local` is no longer tracked, remains available locally, and is ignored together with other real environment files; `.env.example` remains tracked.
+- Secret handling: the previous local JWT secret must be treated as exposed because `.env.local` exists in Git history and must never be reused in AWS. No replacement production secret is committed.
+- RDS readiness: the complete fresh schema, controlled one-time admin template, and UTF-8 Vietnamese production service catalog are ready in numbered, non-destructive scripts.
+- Fresh RDS execution order: `database/rds/001_schema.sql`, placeholder-completed `database/rds/002_admin_template.sql`, then `database/rds/003_services_seed.sql`.
+
+Deployment readiness summary:
+
+- **TEST ENDPOINT BLOCKER: RESOLVED** — `/api/test/**` handlers are limited to the `local` and `test` profiles and return `404` under `prod`.
+- **AWS INFRASTRUCTURE DEPLOYMENT READINESS: READY**
+- **COMPLETE PRODUCTION APPLICATION READINESS: NOT READY — production email delivery with Amazon SES is still pending**
 
 Focused automated coverage added:
 
@@ -458,6 +468,7 @@ Focused automated coverage added:
 - Forgot-password responses do not reveal account existence
 - Password reset stores a BCrypt hash that matches the new password and rejects the old password
 - Public `GET /actuator/health` returns `UP` without authentication
+- Development-only `/api/test/**` handlers are absent under the `prod` profile while public auth/health and protected endpoint security behavior remain intact
 
 JWT/Spring Security coverage added:
 

@@ -70,6 +70,9 @@ mysql --host=<RDS_ENDPOINT> --port=3306 --user=<MIGRATION_ADMIN> --password --ss
 ```
 
 4. Generate a BCrypt password hash offline, copy `database/rds/002_admin_template.sql` outside the repository, replace all placeholders, and execute that copy once. Do not use demo credentials or `database/schema.sql` in production.
-5. Configure the runtime account with only application DML permissions. Schema changes should continue through reviewed, numbered, non-destructive scripts; take an RDS snapshot before applying changes.
+5. Apply the controlled production service catalog from `database/rds/003_services_seed.sql`.
+6. Configure the runtime account with only application DML permissions. Schema changes should continue through reviewed, numbered, non-destructive scripts; take an RDS snapshot before applying changes.
 
-The RDS schema contains no `DROP` statements, demo users, wallets, transactions, services, or local test-data dependency.
+For a fresh RDS database, run `001_schema.sql`, the placeholder-completed one-time `002_admin_template.sql`, and then `003_services_seed.sql`, in that order. Existing files under `database/migrations/` are not required after applying the complete fresh schema. `database/schema.sql` is local-development only, and `database/fix_services_utf8.sql` is a legacy repair script rather than part of fresh RDS initialization.
+
+The RDS scripts contain no destructive reset statements, demo users, wallets, transactions, or local test-data dependency. The only catalog data is the controlled production service seed.

@@ -1,6 +1,7 @@
 package com.khoi.ewallet.controller;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -10,6 +11,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/test")
 @CrossOrigin(origins = "http://localhost:5173")
+@Profile({"local", "test"})
 public class TestDbController {
 
     private final JdbcTemplate jdbcTemplate;
