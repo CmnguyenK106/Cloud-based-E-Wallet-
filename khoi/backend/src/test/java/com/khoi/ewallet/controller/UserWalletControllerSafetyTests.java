@@ -245,12 +245,21 @@ class UserWalletControllerSafetyTests {
     }
 
     private static Map<String, Object> activeUser() {
-        return Map.of("id", 1, "role", "user", "status", "active");
+        return Map.of(
+                "id", 1,
+                "role", "user",
+                "status", "active",
+                "email_verified", true
+        );
     }
 
     private void assertEmailNotVerified(ResponseEntity<Map<String, Object>> response) {
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
-        assertEquals("EMAIL_NOT_VERIFIED", response.getBody().get("code"));
+        assertEquals("EMAIL_VERIFICATION_REQUIRED", response.getBody().get("code"));
+        assertEquals(
+                "Please verify your email before performing this action.",
+                response.getBody().get("message")
+        );
     }
 
     private static class UnverifiedUserJdbcTemplate extends JdbcTemplate {

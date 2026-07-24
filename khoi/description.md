@@ -1,5 +1,13 @@
 # Cloud-based E-wallet - Project Requirements
 
+> **Current implementation note (2026-07-25):** This began as an early requirements and design document. Later wording such as “proposed,” “future,” production Docker Compose, ECR, or App Runner is historical/legacy guidance. [PROJECT_STATUS.md](PROJECT_STATUS.md) is authoritative for current status.
+>
+> ✅ The application currently includes simulated deposit/top-up, wallet-to-wallet transfer, service payment, and transaction history. Deposit is not a future feature.
+>
+> ✅ Current production: Users → Route 53 / `cloud-ewallet.com` → CloudFront → S3 React frontend → API requests to EC2 → Docker container `ewallet-backend` → Spring Boot → Amazon RDS MySQL. Spring Boot also sends email through Amazon SES.
+>
+> ✅ Production uses Docker Hub image `chaukhoi/ewallet-backend:ses-v2`, manual `docker run`, environment file `/home/ec2-user/ewallet-backend.env`, and port mapping `8080:8080`. Docker Compose and CI/CD are not used for the current production deployment.
+
 ## 1. Giới thiệu dự án
 
 Cloud-based E-wallet là một hệ thống ví điện tử mô phỏng được xây dựng dưới dạng web application. Hệ thống cho phép người dùng đăng ký tài khoản bằng số điện thoại, tự động tạo ví, nhận số dư ban đầu, nạp tiền mô phỏng, chuyển tiền giữa các ví, thanh toán dịch vụ ảo và xem lịch sử giao dịch.

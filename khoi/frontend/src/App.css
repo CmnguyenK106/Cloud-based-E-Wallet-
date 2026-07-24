@@ -234,6 +234,37 @@ input {
   background: #f8fafc;
 }
 
+.email-verification-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem max(1rem, calc((100% - 1180px) / 2));
+  background: #fff4d6;
+  border-bottom: 1px solid #e5b94f;
+  color: #5b4200;
+}
+
+.email-verification-banner div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.email-verification-banner span {
+  font-size: 0.9rem;
+}
+
+.email-verification-banner .verification-banner-message {
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .email-verification-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .wallet-status-bar div {
   max-width: 1180px;
   margin: 0 auto;

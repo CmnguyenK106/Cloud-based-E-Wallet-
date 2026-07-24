@@ -599,7 +599,7 @@ public class UserWalletController {
             return new AuthResult(null, error("FORBIDDEN_ROLE", "User wallet access required", HttpStatus.FORBIDDEN));
         }
 
-        boolean emailVerified = user.get("email_verified") == null || isTruthy(user.get("email_verified"));
+        boolean emailVerified = isTruthy(user.get("email_verified"));
         return new AuthResult(new AuthenticatedUser(userId, emailVerified), null);
     }
 
@@ -724,7 +724,11 @@ public class UserWalletController {
     }
 
     private ResponseEntity<Map<String, Object>> emailNotVerified() {
-        return error("EMAIL_NOT_VERIFIED", "Verify your email before using wallet operations.", HttpStatus.FORBIDDEN);
+        return error(
+                "EMAIL_VERIFICATION_REQUIRED",
+                "Please verify your email before performing this action.",
+                HttpStatus.FORBIDDEN
+        );
     }
 
     private ResponseEntity<Map<String, Object>> error(String code, String message, HttpStatus status) {

@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import './App.css'
 import { accountApi, accountToAuthUser } from './apis/accountApi'
+import { authApi } from './apis/authApi'
+import { EMAIL_VERIFICATION_REQUIRED_EVENT } from './apis/axiosClient'
 import { walletApi } from './apis/walletApi'
 import AdminRoute from './components/routes/AdminRoute'
 import ProtectedRoute from './components/routes/ProtectedRoute'
@@ -117,6 +119,72 @@ function SessionMonitor() {
   }, [logout, navigate, setAccount, token])
 
   return null
+}
+
+function EmailVerificationBanner() {
+  const user = useAuthStore((state) => state.user)
+  const [message, setMessage] = useState('')
+  const [isSending, setIsSending] = useState(false)
+
+  useEffect(() => {
+    const handleRequired = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail
+      setMessage(
+        detail?.message ||
+          'Please verify your email before performing this action.',
+      )
+    }
+
+    window.addEventListener(EMAIL_VERIFICATION_REQUIRED_EVENT, handleRequired)
+    return () =>
+      window.removeEventListener(
+        EMAIL_VERIFICATION_REQUIRED_EVENT,
+        handleRequired,
+      )
+  }, [])
+
+  if (user?.role !== 'user' || user.emailVerified !== false) {
+    return null
+  }
+
+  const resend = async () => {
+    if (!user.email || isSending) return
+    setIsSending(true)
+    setMessage('')
+    try {
+      const response = await authApi.resendVerification(user.email)
+      setMessage(response.message)
+    } catch (error) {
+      setMessage(
+        axios.isAxiosError<SessionErrorResponse>(error)
+          ? error.response?.data?.message ||
+              'Unable to resend the verification email.'
+          : 'Unable to resend the verification email.',
+      )
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  return (
+    <aside className="email-verification-banner" role="status">
+      <div>
+        <strong>Email verification required</strong>
+        <span>
+          Verify your email to enable deposits, transfers, payments, and other
+          wallet transactions.
+        </span>
+        {message && <span className="verification-banner-message">{message}</span>}
+      </div>
+      <button
+        className="secondary-button"
+        onClick={resend}
+        disabled={!user.email || isSending}
+      >
+        {isSending ? 'Sending...' : 'Resend verification email'}
+      </button>
+    </aside>
+  )
 }
 
 function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
@@ -309,6 +377,7 @@ function App() {
       <div className="app-shell">
         <SessionMonitor />
         <AppHeader activeTab={activeTab} setActiveTab={setActiveTab} />
+        <EmailVerificationBanner />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />

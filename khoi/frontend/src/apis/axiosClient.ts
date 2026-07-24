@@ -12,6 +12,8 @@ const axiosClient = axios.create({
 })
 
 const sessionErrorCodes = new Set(['UNAUTHORIZED', 'ACCOUNT_BLOCKED'])
+export const EMAIL_VERIFICATION_REQUIRED_EVENT =
+  'email-verification-required'
 let isClearingSession = false
 
 type ErrorResponse = {
@@ -30,6 +32,22 @@ axiosClient.interceptors.request.use((config) => {
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (
+      axios.isAxiosError<ErrorResponse>(error) &&
+      error.response?.status === 403 &&
+      error.response.data?.code === 'EMAIL_VERIFICATION_REQUIRED'
+    ) {
+      window.dispatchEvent(
+        new CustomEvent(EMAIL_VERIFICATION_REQUIRED_EVENT, {
+          detail: {
+            message:
+              error.response.data.message ||
+              'Please verify your email before performing this action.',
+          },
+        }),
+      )
+    }
+
     if (
       axios.isAxiosError<ErrorResponse>(error) &&
       error.response &&
