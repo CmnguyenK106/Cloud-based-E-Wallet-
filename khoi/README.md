@@ -26,7 +26,17 @@ The image uses a Maven build stage and a Java 17 runtime stage, runs as a non-ro
 
 ### Production backend environment
 
-Set `SPRING_PROFILES_ACTIVE=prod` and provide `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `FRONTEND_BASE_URL`, and `CORS_ALLOWED_ORIGINS`. Use the JDBC RDS endpoint with TLS options appropriate to the RDS certificate configuration. Set `MAIL_DEVELOPMENT_LOG_ENABLED=false`; the production profile also forces URL logging off.
+Set `SPRING_PROFILES_ACTIVE=prod` and provide `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `FRONTEND_BASE_URL`, and `CORS_ALLOWED_ORIGINS`. Use the JDBC RDS endpoint with TLS options appropriate to the RDS certificate configuration.
+
+Production email uses Amazon SES SMTP through Spring Boot Mail. Provide:
+
+- `SES_SMTP_HOST` — the regional SES SMTP endpoint
+- `SES_SMTP_PORT` — optional; defaults to `587`
+- `SES_SMTP_USERNAME` — SES SMTP username
+- `SES_SMTP_PASSWORD` — SES SMTP password
+- `MAIL_FROM_ADDRESS` — an SES-verified sender address
+
+The production profile requires SMTP authentication and STARTTLS. SES SMTP credentials are not AWS access keys. Keep them outside the repository in an appropriate AWS secret/configuration service or protected EC2 environment mechanism. `MAIL_DEVELOPMENT_LOG_ENABLED` applies only to the local profile; production never uses the development link-logging service.
 
 Example EC2 container invocation:
 

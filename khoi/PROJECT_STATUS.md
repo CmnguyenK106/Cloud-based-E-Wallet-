@@ -1,536 +1,569 @@
-# Cloud E-wallet Project Status
+# Cloud E-Wallet Project Status
 
-Last source review: 2026-07-21
+Last source review: 2026-07-24
 
-This file is the handoff reference for future development sessions. Feature status below was checked against the current source, not copied from older project notes.
+Status legend:
 
-## 1. Project Summary
+- ✅ Completed — implemented and verified in the repository, or previously completed and retained.
+- 🟡 In Progress — partially implemented, locally prepared but not cloud-verified, or currently blocked on verification.
+- ⬜ Planned — not implemented or not evidenced by the repository.
 
-This repository contains a small simulated cloud-based e-wallet web application. It has one shared frontend for regular users and administrators, a Spring Boot REST backend, and a MySQL development database running in Docker.
+This document is derived from the current source tree. Source code and executed checks take precedence over older notes. The application is a simulated e-wallet learning project and is not suitable for real money.
 
-The local MVP implements account management, wallet operations, service payments, user transaction history, and administrative user, transaction, and service management. It is a learning/demo system and is not suitable for real money.
+## 1. Executive Summary
+
+| Area | Status | Current state |
+| --- | --- | --- |
+| Local MVP | ✅ Completed | User wallet, account, service-payment, transaction-history, and admin workflows are implemented. |
+| Authentication | ✅ Completed | BCrypt passwords, signed expiring JWT access tokens, backend role/status reload, and email verification/password reset are implemented. |
+| Production email code | 🟡 In Progress | SMTP implementation for Amazon SES, production profile wiring, examples, and tests exist locally; no live SES sender/account verification is evidenced. |
+| Production builds | ✅ Completed | Backend Dockerfile and frontend static build configuration exist; frontend build/lint pass in the 2026-07-24 review. |
+| AWS deployment | ⬜ Planned | No IaC, AWS identifiers, deployed URLs, or other repository evidence proves that S3, CloudFront, EC2, RDS, ALB, ACM, Route 53, SES, or CloudWatch resources exist. |
+| ALB/security phase | ⬜ Planned | The application exposes health probes and handles forwarded headers, but the ALB, HTTPS certificate, network rules, WAF/rate limiting, and secret store are not implemented here. |
+| High availability | ⬜ Planned | The target remains one backend EC2 initially; a two-instance ALB target group is a future migration. |
+| CI/CD | ⬜ Planned | No `.github/workflows` deployment pipeline exists. |
+| Container orchestration | ⬜ Planned | A backend container exists, but no ECS/EKS task, service, cluster, or deployment configuration exists. |
+| Production readiness | 🟡 In Progress | Application packaging and baseline security are prepared; cloud infrastructure, operational controls, complete tests, and financial-safety controls remain. |
 
 ## 2. Technology Stack
 
-| Area | Current technology |
-| --- | --- |
-| Frontend | React 19, TypeScript, Vite, React Router, Axios, Zustand, Zod |
-| Backend | Java 17, Spring Boot 4.1, Spring Web MVC, `JdbcTemplate` |
-| Security | Spring Security, BCrypt password hashing, signed JWT access tokens (JJWT) |
-| Database | MySQL 8 in Docker |
-| Styling | Shared CSS in `frontend/src/App.css`, including responsive layouts |
-| Build | npm/Vite for frontend, Maven for backend |
+| Area | Status | Current technology |
+| --- | --- | --- |
+| Frontend | ✅ Completed | React 19, TypeScript 6, Vite 8, React Router 7, Axios, Zustand, and Zod |
+| Backend | ✅ Completed | Java 17, Spring Boot 4.1, Spring Web MVC, Spring Security, Actuator, Mail, and `JdbcTemplate` |
+| Authentication | ✅ Completed | BCrypt and JJWT HS256 access tokens |
+| Database | ✅ Completed | MySQL 8 locally; RDS-compatible numbered SQL scripts prepared |
+| Local runtime | ✅ Completed | Docker Compose MySQL plus PowerShell startup helper |
+| Backend packaging | ✅ Completed | Multi-stage Docker image with Java 17 and non-root UID 10001 |
+| Frontend packaging | ✅ Completed | Static Vite output suitable for S3/CloudFront |
+| Infrastructure as code | ⬜ Planned | No CloudFormation, CDK, Terraform, or Pulumi configuration |
 
-## 3. Current Architecture
+## 3. Implemented Application Architecture
 
-- One React frontend serves both user and admin experiences.
-- Route guards separate public, user-only, and admin-only pages.
-- The frontend stores the current account and JWT access token in Zustand and `localStorage`.
-- Axios uses a shared client and clears invalid/blocked sessions.
-- A 10-second account polling loop refreshes account state and logs out blocked accounts.
-- Spring controllers currently contain SQL and business logic directly; there is no service/repository layer.
-- A stateless Spring Security filter validates signed bearer tokens, then reloads account role/status from MySQL on every protected request.
-- Core wallet mutations use Spring transactions and `JdbcTemplate`.
-- MySQL data persists in a named Docker volume and is initialized from `database/schema.sql` only when the volume is first created.
+```text
+Browser
+  ├─ React/Vite SPA
+  │    ├─ public, user, and admin route guards
+  │    ├─ Zustand state + JWT in localStorage
+  │    └─ Axios bearer-token client + 10-second account-status polling
+  │
+  └─ /api requests
+       └─ Spring Boot REST API
+            ├─ stateless Spring Security + JWT filter
+            ├─ role/status reloaded from MySQL on protected requests
+            ├─ controllers containing SQL and business logic
+            ├─ transactional wallet mutations with row locking
+            ├─ local link-logging email service (local profile)
+            └─ SMTP email service (prod profile)
+                 └─ MySQL 8
+```
 
-## 4. Completed Features
+Current implementation notes:
+
+- ✅ Completed — one frontend serves regular-user and administrator experiences.
+- ✅ Completed — public, authenticated, user-only, and admin-only routes are enforced in the frontend and backend.
+- ✅ Completed — deposit, transfer, and payment mutations use Spring transactions; wallet balance reads use `SELECT ... FOR UPDATE`.
+- ✅ Completed — the protected-request JWT filter reloads account role and status from MySQL.
+- ✅ Completed — `/actuator/health`, `/actuator/health/liveness`, and `/actuator/health/readiness` are public with details hidden.
+- ✅ Completed — development-only `/api/test/**` handlers are restricted to `local` and `test` profiles.
+- 🟡 In Progress — SMTP/SES production delivery is code-complete locally but not verified with AWS SES.
+- ⬜ Planned — service/repository layering; SQL and much business logic currently remain in controllers.
+
+## 4. Completed Milestones
+
+Previous completed milestones are retained below.
 
 ### User Features
 
-- [x] Registration with phone, password, and profile creation
-- [x] Required normalized email registration with local email verification
-- [x] Resend-verification and forgot/reset-password flows using hashed, expiring, single-use tokens
-- [x] User login and logout
-- [x] BCrypt password hashing and verification
-- [x] Role-aware post-login navigation
-- [x] Profile viewing and editing
-- [x] Wallet information and current balance
-- [x] Transfer between user wallets
-- [x] Simulated deposit/top-up
-- [x] Transaction history with deposit, transfer, and payment presentation
-- [x] User transaction history exposes and displays only the authenticated wallet's balance before and after each transaction
-- [x] Active service list loaded from MySQL
-- [x] Service payment using the database price
-- [x] Inactive-service payment rejection
-- [x] Wallet and transaction refresh after successful operations
-- [x] Unverified users may log in and use read-only account pages but cannot deposit, transfer, or pay
+- ✅ Completed — registration with normalized email, phone, profile, wallet, and BCrypt password.
+- ✅ Completed — login, logout, role-aware navigation, and page-refresh session persistence.
+- ✅ Completed — email verification/resend with hashed, expiring, single-use tokens.
+- ✅ Completed — forgot/reset password with generic account-discovery-safe responses.
+- ✅ Completed — profile viewing and editing.
+- ✅ Completed — wallet information and current balance.
+- ✅ Completed — simulated deposit/top-up.
+- ✅ Completed — transfer between regular-user wallets.
+- ✅ Completed — active service catalog and payment using the server-side database price.
+- ✅ Completed — inactive-service payment rejection.
+- ✅ Completed — user-specific transaction history and correct authenticated-wallet before/after balances.
+- ✅ Completed — unverified users may use read-only account pages but cannot mutate wallet state.
+- ✅ Completed — successful operations refresh wallet and transaction state.
 
 ### Admin Features
 
-- [x] Admin login and logout
-- [x] Admin-only route guard and backend role checks
-- [x] Admin dashboard and system totals
-- [x] User list with search/status filtering
-- [x] Ban and unban regular users
-- [x] System-wide transaction list
-- [x] Transaction search by code, phones, names, service, and description
-- [x] Transaction type, status, date, and sort filters
-- [x] Stable transaction sorting and zero-based pagination
-- [x] Responsive transaction table/cards and read-only detail modal
-- [x] Admin service list including active and inactive services
-- [x] Create and edit services
-- [x] Activate and deactivate services without deleting rows
-- [x] Service name/description search and status filter
-- [x] Frontend Zod service validation and backend `BigDecimal` validation
-- [x] Case-insensitive, trimmed duplicate service-name rejection
+- ✅ Completed — admin authentication and admin-only frontend/backend access.
+- ✅ Completed — dashboard totals.
+- ✅ Completed — user search/filter and ban/unban.
+- ✅ Completed — system transaction search, filters, stable sorting, pagination, responsive views, and detail modal.
+- ✅ Completed — list active/inactive services.
+- ✅ Completed — create, edit, activate, and deactivate services without hard deletion.
+- ✅ Completed — frontend Zod and backend decimal/service validation.
+- ✅ Completed — trimmed, case-insensitive duplicate service-name rejection at application level.
 
-### Shared Features
+### Shared and Quality Milestones
 
-- [x] One shared frontend for user and admin
-- [x] Public, protected, user-only, and admin-only route behavior
-- [x] Account-status checks against the database
-- [x] Automatic logout when an account becomes blocked
-- [x] Page-refresh persistence through Zustand and `localStorage`
-- [x] Shared toast notifications
-- [x] Centered confirmation modals with Escape handling
-- [x] Responsive desktop/mobile layouts
-- [x] Null-safe transaction and profile rendering
+- ✅ Completed — shared toast notifications and confirmation modals with Escape handling.
+- ✅ Completed — responsive desktop/mobile layouts and null-safe rendering.
+- ✅ Completed — automatic logout for expired/invalid sessions and blocked accounts.
+- ✅ Completed — UTF-8 source/API mapping checks and Vietnamese response coverage.
+- ✅ Completed — Dockerized non-root backend and environment-specific Spring profiles.
+- ✅ Completed — environment-driven database, JWT, frontend URL, CORS, token lifetime, and mail settings.
+- ✅ Completed — production-safe numbered RDS schema/admin/catalog scripts.
+- ✅ Completed — public health/liveness/readiness endpoints and production exclusion of test controllers.
+- ✅ Completed — isolated wallet safety, rollback-boundary, concurrency-model, JWT, token, email, profile-selection, and production-endpoint tests.
+- ✅ Completed — production SMTP email adapter and Amazon SES SMTP configuration are implemented and unit/profile tested locally.
 
-## 5. In Progress
+## 5. API and Route Inventory
 
-No local-MVP product feature or verification task is currently in progress. AWS deployment preparation was completed locally without creating AWS resources. The backend production image, environment-driven configuration, public health endpoint, production-safe RDS schema, and production exclusion of development-only test endpoints were verified locally on 2026-07-21.
+| Status | Method | Endpoint | Purpose |
+| --- | --- | --- | --- |
+| ✅ Completed | POST | `/api/auth/register` | Create regular user, profile, wallet, and verification token |
+| ✅ Completed | POST | `/api/auth/login` | Authenticate user/admin and issue JWT |
+| ✅ Completed | POST | `/api/auth/verify-email` | Consume email verification token |
+| ✅ Completed | POST | `/api/auth/resend-verification` | Replace verification token |
+| ✅ Completed | POST | `/api/auth/forgot-password` | Request recovery without revealing account existence |
+| ✅ Completed | POST | `/api/auth/reset-password` | Consume reset token and replace password |
+| ✅ Completed | GET/PATCH | `/api/account/me` | Read/update current profile |
+| ✅ Completed | GET | `/api/user/wallet/me` | Current user and wallet |
+| ✅ Completed | POST | `/api/user/wallet/deposit` | Simulated deposit |
+| ✅ Completed | POST | `/api/user/wallet/transfer` | Wallet transfer |
+| ✅ Completed | GET | `/api/user/wallet/transactions` | Authenticated wallet history |
+| ✅ Completed | GET | `/api/user/wallet/services` | Active service list |
+| ✅ Completed | POST | `/api/user/wallet/payments` | Service payment |
+| ✅ Completed | GET | `/api/admin/dashboard` | Admin summary |
+| ✅ Completed | GET/PATCH | `/api/admin/users`, `/api/admin/users/{id}/status` | User management |
+| ✅ Completed | GET | `/api/admin/transactions` | Filtered/paginated system history |
+| ✅ Completed | GET/POST/PATCH | `/api/admin/services/**` | Service management |
+| ✅ Completed | GET | `/actuator/health/**` | ALB/container health probes |
+| ✅ Completed | GET | `/api/test/**` | Local/test-profile diagnostics only |
 
-The next recommended work is email registration/verification and password-reset functionality. Production-grade idempotency, real-database concurrency stress tests, and broader financial audit work remain scheduled for Phase 3.
+Frontend routes implemented: `/`, `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`, `/profile`, `/dashboard`, `/admin`, `/admin/users`, `/admin/transactions`, and `/admin/services`.
 
-## 6. Current Database Structure
+## 6. Database Status
 
-| Table | Purpose | Important notes |
+| Object | Status | Notes |
 | --- | --- | --- |
-| `users` | Shared user/admin accounts | Unique phone, normalized unique regular-user email, verification state, BCrypt password, role/status |
-| `account_tokens` | Verification and recovery tokens | SHA-256 token hash, type, expiry, single-use timestamp, user relationship |
-| `user_profiles` | Regular-user profile | One-to-one with `users` |
-| `admin_profiles` | Administrator profile | One-to-one with `users`; admins do not have wallets |
-| `wallets` | User balance | One wallet per regular user, non-negative balance constraint |
-| `services` | Simulated payment services | Price, optional description, `is_active`, timestamps |
-| `transactions` | Deposit, transfer, and payment history | Sender/receiver/service relationships are nullable; rows are preserved |
+| `users` | ✅ Completed | Unique phone/email, verification state, BCrypt password, role/status |
+| `account_tokens` | ✅ Completed | SHA-256 token hash, token type, expiry, single-use timestamp |
+| `user_profiles` / `admin_profiles` | ✅ Completed | Role-specific profile data |
+| `wallets` | ✅ Completed | One per regular user, decimal balance, non-negative check |
+| `services` | ✅ Completed | Price, description, active flag, timestamps |
+| `transactions` | ✅ Completed | Deposit/transfer/payment history with nullable preserved relationships |
+| Local schema initialization | ✅ Completed | `database/schema.sql` mounted by Docker Compose on first volume creation |
+| Fresh RDS scripts | ✅ Completed | `001_schema.sql`, placeholder-only `002_admin_template.sql`, `003_services_seed.sql` |
+| Migration framework | ⬜ Planned | No Flyway/Liquibase automation; scripts are manually applied |
+| DB-enforced normalized service uniqueness | ⬜ Planned | Application check exists, but concurrent creates can race |
+| Production RDS execution | ⬜ Planned | No repository evidence that scripts have been applied to RDS |
 
-The schema includes foreign keys and indexes for transaction relationships, time, type, and account role/status. No migration framework is configured; schema initialization currently relies on the Docker initialization script.
+## 7. Deployment Status
 
-## 7. API Overview
+### Evidence-Based Current State
 
-### Authentication and Account
+- ✅ Completed — backend Dockerfile builds a non-root Java 17 runtime image.
+- ✅ Completed — frontend produces static assets and supports `VITE_API_BASE_URL` or same-origin `/api`.
+- ✅ Completed — production profile reads database, JWT, CORS, frontend URL, token, and SES SMTP settings from the environment.
+- ✅ Completed — RDS initialization scripts and a controlled admin template exist.
+- ✅ Completed — forwarded-header support is enabled in the production profile for operation behind an ALB/reverse proxy.
+- 🟡 In Progress — SES SMTP application integration exists locally; AWS sender identity, sandbox/production access, credentials, and live delivery are unverified.
+- ⬜ Planned — AWS account/region/domain decisions and deployed resource identifiers.
+- ⬜ Planned — S3 frontend bucket and CloudFront distribution.
+- ⬜ Planned — Route 53 DNS and ACM certificates.
+- ⬜ Planned — VPC/subnets/security groups, private RDS, EC2 instance, and runtime service.
+- ⬜ Planned — ALB, HTTPS listener, target group, health check, and HTTP-to-HTTPS redirect.
+- ⬜ Planned — CloudWatch log shipping, dashboards, alarms, retention, AWS Budgets, and backup restore test.
+- ⬜ Planned — deployment verification and rollback evidence.
 
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| POST | `/api/auth/register` | Register regular user and wallet |
-| POST | `/api/auth/login` | Login user or admin |
-| POST | `/api/auth/verify-email` | Verify a regular-user email with a single-use token |
-| POST | `/api/auth/resend-verification` | Generically request a replacement verification token |
-| POST | `/api/auth/forgot-password` | Generically request password recovery by email |
-| POST | `/api/auth/reset-password` | Reset a regular-user password with a single-use token |
-| GET | `/api/account/me` | Reload current account and status |
-| PATCH | `/api/account/me` | Edit user/admin profile fields |
+Repository state is not proof of live AWS state. Until external deployment evidence is recorded, AWS deployment remains planned.
 
-### User Wallet
+## 8. Target AWS Architecture
 
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| GET | `/api/user/wallet/me` | Wallet and account information |
-| POST | `/api/user/wallet/deposit` | Simulated deposit |
-| POST | `/api/user/wallet/transfer` | Transfer to another user |
-| GET | `/api/user/wallet/transactions` | Current user's transaction history |
-| GET | `/api/user/wallet/services` | Active services only |
-| POST | `/api/user/wallet/payments` | Pay an active service using its database price |
-
-### Administration
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| GET | `/api/admin/dashboard` | Admin profile and summary |
-| GET | `/api/admin/users` | Regular-user list |
-| PATCH | `/api/admin/users/{userId}/status` | Ban or unban user |
-| GET | `/api/admin/transactions` | Paginated system transaction list with filters |
-| GET | `/api/admin/services` | All services |
-| POST | `/api/admin/services` | Create service |
-| PATCH | `/api/admin/services/{serviceId}` | Edit service fields |
-| PATCH | `/api/admin/services/{serviceId}/status` | Activate/deactivate service |
-
-Development-only `/api/test/**` endpoints are registered only under the `local` and `test` Spring profiles. A production-profile integration test verifies that these routes are not registered in `prod`.
-
-## 8. Frontend Routes
-
-| Route | Access | Purpose |
-| --- | --- | --- |
-| `/` | Public | Home page |
-| `/login` | Public | Login |
-| `/register` | Public | Registration |
-| `/verify-email` | Public | Verify email from a token query parameter |
-| `/forgot-password` | Public | Request a password-reset link |
-| `/reset-password` | Public | Set a new password from a token query parameter |
-| `/profile` | Authenticated | User/admin profile |
-| `/dashboard` | Regular user | Wallet tabs: wallet, transfer, deposit, services, history |
-| `/admin` | Admin | Admin dashboard |
-| `/admin/users` | Admin | User management |
-| `/admin/transactions` | Admin | Transaction management |
-| `/admin/services` | Admin | Service management |
-
-Unauthenticated protected navigation redirects to `/login`. A regular user opening an admin route is redirected to `/dashboard`. Admin accounts cannot use user wallet routes because the backend verifies role and the frontend uses `UserRoute`.
-
-## 9. Authentication Status
-
-Status: **signed JWT access-token implementation verified locally**.
-
-- Passwords are stored and checked with BCrypt.
-- Successful login and registration return a signed HS256 JWT access token with the account ID as its subject.
-- Access-token lifetime is configurable with `JWT_EXPIRATION` and defaults to 3600 seconds.
-- `JWT_SECRET` is required at backend startup and must provide at least 32 bytes; no real secret is committed by the JWT implementation.
-- Spring Security validates the signature and expiration, and reloads the account from MySQL so nonexistent, blocked, and role-inappropriate accounts are rejected.
-- Missing/invalid authentication returns `401`; blocked accounts and wrong roles return `403` where applicable.
-- Session polling and the shared Axios error handler log out invalid or blocked sessions.
-- The frontend retains refresh persistence by storing the access token in the existing `localStorage` session state and attaches it through the shared Axios client.
-- There is no refresh token or server-side JWT revocation list. Password reset does not invalidate already-issued JWTs.
-
-## 10. Known Limitations
-
-- JWT access tokens are stored in `localStorage`, so an XSS defect could expose them.
-- There is no refresh-token flow or server-side per-token revocation; account status changes are enforced through the database check on each protected request.
-- Production secrets and database configuration require external environment/secret management; no AWS secret store is configured yet.
-- Local development depends on Docker MySQL.
-- Deposit is simulated and does not contact a provider.
-- No real payment provider, webhook, reconciliation, refund, or payment-order workflow exists.
-- Email delivery is local-development logging only; Amazon SES is not integrated.
-- Authentication and recovery endpoints do not yet have rate limiting.
-- There is no audit log for admin actions.
-- There is no idempotency key or duplicate-request protection for wallet operations.
-- Automated coverage now includes a Spring context test, focused isolated wallet-controller safety tests, and JWT/Spring Security integration tests; it does not yet include browser E2E tests or real-MySQL concurrency stress tests.
-- No AWS resources, SES integration, centralized logs/metrics, alarms, or production observability infrastructure has been created.
-- This application must not handle real money in its current state.
-
-## 11. Known Issues
-
-| Severity | Issue | Impact / action |
-| --- | --- | --- |
-| High | Core mutation endpoints lack idempotency | Double submissions can create duplicate operations; add request-level idempotency in Phase 3 |
-| High | Concurrency coverage is isolated rather than a real-MySQL stress test | Deterministic tests verify sender locking behavior, but database-level stress testing remains Phase 3 work |
-| Medium | SQL/business logic lives in controllers | Refactor when complexity or test coverage grows |
-| Medium | Duplicate service names are application-checked only | Concurrent creates could race; consider a normalized unique key in a migration |
-| Medium | UTF-8/mojibake appears in existing SQL comments and older documentation when read by some tools | Verify actual file encoding and browser/API output before rewriting data |
-| Low | `start-dev.ps1` uses fixed waits instead of health checks | Replace waits with readiness checks when improving developer tooling |
-
-## 12. Next Recommended Task
-
-**Complete the remaining security/deployment review (rate limiting, test endpoints, secret storage, HTTPS/networking), then perform a controlled initial AWS deployment.**
-
-JWT access-token authentication is now ready as the base for that work. Keep email business logic local first and integrate Amazon SES only after deployment preparation.
-
-## 13. Development Roadmap
-
-### Phase 1 — Finish Local MVP
-
-1. [x] Finish Admin Service Management
-2. [x] Run main-flow manual regression testing (reported successful by the user)
-3. [x] Run frontend/backend automated checks and fix confirmed errors
-4. [x] Verify UTF-8 source decoding, SQL/HTTP encoding configuration, Vietnamese API mapping, and frontend compilation
-5. [x] Add isolated transfer, insufficient-balance, rollback, and concurrency safety tests
-6. [x] Confirm inactive-service payment rejection through an automated controller test
-
-Verification scope note: the UTF-8 checks included fatal byte decoding with no replacement characters, intended Vietnamese seed text, backend UTF-8 configuration, a Vietnamese service API mapping test, and a successful frontend production build. Real-browser visual inspection was part of the user's manual main-flow testing but was not automated. Concurrency and rollback tests isolate controller/transaction behavior without mutating the persistent Docker database; real-MySQL stress testing remains Phase 3 work.
-
-### Phase 2 — Authentication and Security
-
-1. [x] Replace the demo token with JWT.
-2. [x] Add access-token expiration.
-3. [x] Continue validating role/status from the backend.
-4. [x] Add email to registration.
-5. [x] Add email verification and resend.
-6. [x] Add forgot/reset-password flows.
-7. [x] Move secrets and credentials to environment variables.
-8. [x] Restrict CORS by environment.
-9. [x] Restrict test endpoints to the `local` and `test` Spring profiles.
-10. Add basic rate limiting if practical.
-11. Review password and authentication error handling.
-
-Preferred direction: keep Spring Boot authentication, implement JWT and local email business logic, then integrate Amazon SES after deployment. Cognito is not currently planned.
-
-### Phase 3 — Financial Consistency and Audit
-
-1. Add idempotency for deposit, transfer, and payment.
-2. Prevent duplicate transactions from repeated clicks/requests.
-3. Review and test concurrent transfer behavior and wallet locking.
-4. Prove balances cannot become negative under concurrency.
-5. Verify rollback on every partial-failure path.
-6. Review transaction/reference-code guarantees.
-7. Add admin audit logs for user status and service changes.
-8. Improve failed-transaction modeling.
-9. Add explicit transaction limits and validation policy.
-
-Do not introduce real-money behavior before this phase is stable.
-
-### Phase 4 — Deployment Preparation
-
-1. [x] Move frontend API URL, database settings, and CORS to environment-specific configuration; keep the JWT secret environment-only.
-2. [x] Add development and production Spring profiles.
-3. [x] Dockerize the backend; retain the frontend as a static S3/CloudFront build.
-4. [x] Confirm repeatable production builds.
-5. [x] Add deployment documentation and health checks.
-6. [x] Add numbered non-destructive schema/migration scripts and an RDS initialization guide.
-7. Document backup and recovery.
-8. Audit the repository for committed secrets.
-
-### Phase 5 — Initial AWS Deployment
-
-Target a cost-conscious first deployment:
-
-- React: Amazon S3 and CloudFront
-- Spring Boot: a small Amazon EC2 instance
-- MySQL: a small, single-AZ Amazon RDS for MySQL instance
-
-Validate HTTPS, frontend/backend connectivity, EC2/RDS connectivity, CORS, authentication, wallet/admin functions, persistence, backup, logs, and cost alerts. Initially avoid a NAT Gateway, Application Load Balancer, and Multi-AZ unless requirements justify them.
-
-### Phase 6 — AWS Email Integration
-
-1. Verify an Amazon SES sender identity.
-2. Configure least-privilege IAM permissions and an SES region.
-3. Connect the locally developed email service to SES.
-4. Send verification and password-reset emails.
-5. Test sandbox restrictions and request production access when needed.
-6. Add templates without committing AWS credentials.
-
-### Phase 7 — Serverless AWS Extensions
-
-Only after the core deployment is stable:
-
-- Notifications: Spring Boot → SQS → Lambda → SES or notification storage
-- Daily reports: EventBridge → Lambda → CSV/JSON in S3
-- Fraud alerts: Spring Boot → SQS → Lambda → alert record/admin notification
-
-Initial Lambda fraud rules may identify rapid transactions, high daily totals, repeated failures, post-unban activity, or repeated receivers. Lambda must not directly change balances or automatically ban users.
-
-### Phase 8 — Payment Sandbox
-
-Before considering real money, add payment orders, pending/success/failed states, provider IDs, idempotency keys, an HTTPS webhook, signature verification, duplicate-webhook prevention, reconciliation, an admin payment-order view, and sandbox tests. Credit a wallet only after a verified backend webhook—never from a frontend success response.
-
-### Phase 9 — Real Payment Consideration
-
-**Deferred and outside the current MVP.**
-
-Do not implement real-money top-up until JWT, email verification, HTTPS, webhook verification, idempotency, audit logs, concurrency tests, limits, reconciliation, failure/refund handling, and legal/provider review are complete.
-
-## 14. AWS Target Architecture
+### Phase 1 Target — One EC2 Behind an ALB
 
 ```text
 Users
-  → CloudFront
-  → S3-hosted React application
-  → HTTPS Spring Boot API on EC2
-  → RDS for MySQL
+  │ HTTPS
+  ▼
+Route 53
+  ├──────────────► CloudFront ─► private S3 origin (React build)
+  │
+  └─ api hostname ─► ACM TLS certificate
+                       │
+                       ▼
+                 Application Load Balancer
+                 public subnets, 80→443
+                       │ target group /actuator/health
+                       ▼
+                 EC2 backend instance
+                 private or tightly restricted subnet
+                       │ TCP 3306, SG-to-SG only
+                       ▼
+                 RDS MySQL, private subnet
 
-Optional asynchronous extensions after stabilization:
-Spring Boot → SQS → Lambda → SES / S3 / alert storage
-EventBridge → scheduled Lambda → S3 reports
+Supporting services:
+Secrets Manager or SSM Parameter Store ─► EC2 runtime configuration
+EC2/Application/ALB/RDS logs and metrics ─► CloudWatch alarms
+Spring Boot SMTP ─► Amazon SES
+AWS Budgets ─► cost alerts
 ```
 
-Keep transfer, deposit, payment, and balance logic in Spring Boot. Lambda is reserved for auxiliary asynchronous processing.
+### Phase 2 Target — High Availability
 
-## 15. Cost-Control Notes
+```text
+                         ┌─► EC2 backend A (AZ-a) ─┐
+Users ─► HTTPS ALB ──────┤                         ├─► RDS MySQL
+                         └─► EC2 backend B (AZ-b) ─┘
+                              stateless JWT API
 
-- Create AWS Budget alerts before deployment.
-- Start with small EC2 and single-AZ RDS resources.
-- Avoid NAT Gateway and load-balancer costs until needed.
-- Set explicit CloudWatch log-retention periods.
-- Remove unused resources and public IPv4 addresses.
-- Monitor RDS storage, snapshots, data transfer, SES, SQS, and Lambda usage.
-- Do not leave temporary environments running without an owner or shutdown plan.
+CloudFront ─► private S3 frontend
+Auto Scaling Group: desired=2, minimum=2, health replacement enabled
+```
 
-## 16. Manual Test Checklist
+The backend is already stateless at the HTTP session layer, so both instances can share RDS and the same externally managed JWT secret. Deployment must keep image/config/schema versions compatible across both targets. Core balance mutations remain in Spring Boot; they do not move to Lambda.
 
-### Authentication and Account
+### Phase 4 Target — ECS Preferred
 
-- [ ] Register and login as a regular user
-- [ ] Login/logout as admin
-- [ ] Refresh both roles and confirm session persistence
-- [ ] Edit user and admin profiles
-- [ ] Block a logged-in account and confirm automatic logout
-- [ ] Confirm user/admin route redirection and API role rejection
+```text
+CloudFront ─► S3 frontend
+Users ─► ALB ─► ECS service on Fargate (2+ tasks across AZs) ─► RDS MySQL
+                  ├─ ECR image
+                  ├─ Secrets Manager/SSM
+                  ├─ CloudWatch Logs
+                  └─ autoscaling and rolling deployment
+```
 
-### Wallet and Services
+EKS/Kubernetes is a later learning phase, not the preferred first orchestration platform, because ECS/Fargate has lower operational complexity for this application.
 
-- [ ] Deposit and verify balance plus transaction
-- [ ] Transfer and verify both balances plus transaction history
-- [ ] Pay an active service and verify database price usage
-- [ ] Deactivate a service and confirm it disappears after user refetch
-- [ ] Call payment directly for an inactive service and confirm rejection
-- [ ] Activate the service and confirm it becomes usable again
-- [ ] Verify failed/repeated requests do not cause unexplained balance changes
+## 9. Security Implementation
 
-### Administration
+### Implemented
 
-- [ ] Search/filter and ban/unban users
-- [ ] Exercise transaction search, filters, sorting, pagination, and details
-- [ ] Create, edit, activate, and deactivate a service
-- [ ] Verify service duplicate and validation errors
-- [ ] Confirm historical payments still display deactivated service names
+- ✅ Completed — BCrypt password hashing.
+- ✅ Completed — signed HS256 JWT access tokens with configurable expiry and a startup-enforced minimum 32-byte secret.
+- ✅ Completed — strict canonical compact-JWT validation; malformed, forged, padded, expired, and noncanonical tokens are rejected.
+- ✅ Completed — stateless Spring Security with explicit admin/user/account authorization.
+- ✅ Completed — account existence, status, and role are reloaded from MySQL on each protected request.
+- ✅ Completed — blocked accounts are rejected and frontend sessions are cleared.
+- ✅ Completed — explicit production CORS origins; wildcards/empty origin lists are rejected and credentialed CORS is disabled.
+- ✅ Completed — hashed, expiring, single-use verification/reset tokens; replacement invalidates unused prior tokens.
+- ✅ Completed — generic forgot-password response limits account enumeration.
+- ✅ Completed — unverified accounts cannot mutate wallets.
+- ✅ Completed — production test endpoints are absent.
+- ✅ Completed — container runs as a non-root user.
+- ✅ Completed — Actuator exposes only health/info and hides health details.
+- ✅ Completed — SES SMTP uses authentication and required STARTTLS in the production profile.
+- ✅ Completed — secrets are represented as environment placeholders; populated production environment files are ignored.
 
-### Quality
+### Remaining Security Work
 
-- [ ] Test responsive user/admin layouts
-- [ ] Verify Vietnamese text from schema through API to browser
-- [ ] Compare wallet balances with transaction records
-- [ ] Run frontend build/lint and backend tests/compile
+- 🟡 In Progress — repository secret handling is improved, but the previously tracked local JWT secret must be considered exposed and never reused.
+- ⬜ Planned — store runtime secrets in AWS Secrets Manager or encrypted SSM Parameter Store; use an EC2 instance role and least privilege.
+- ⬜ Planned — ACM certificate, ALB HTTPS listener, port 80 redirect, modern TLS policy, and HSTS validation.
+- ⬜ Planned — allow inbound backend traffic only from the ALB security group; allow RDS 3306 only from backend security groups.
+- ⬜ Planned — WAF or application/gateway rate limiting for login, registration, verification, reset, and wallet mutation endpoints.
+- ⬜ Planned — refresh-token rotation or short-lived access-token strategy and password-reset token/session revocation.
+- ⬜ Planned — content-security policy and stronger XSS controls; JWT currently resides in `localStorage`.
+- ⬜ Planned — request idempotency keys for all wallet mutations.
+- ⬜ Planned — admin audit log and immutable financial/audit events.
+- ⬜ Planned — dependency, secret, container-image, and static analysis in CI.
+- ⬜ Planned — RDS TLS `VERIFY_IDENTITY`, encryption at rest, backup retention, deletion protection, and restore test.
+- ⬜ Planned — CloudTrail, GuardDuty/security monitoring, CloudWatch alarms, and incident/credential-rotation procedures.
 
-## 17. Commands
+## 10. Production Readiness
 
-Run from the repository root unless noted.
+Overall: 🟡 In Progress.
 
-Start the existing local development stack:
+| Capability | Status | Production requirement |
+| --- | --- | --- |
+| Repeatable frontend build | ✅ Completed | Vite production build passes |
+| Repeatable backend package | ✅ Completed | Maven/Docker packaging exists |
+| Environment-specific config | ✅ Completed | Profiles and environment placeholders exist |
+| Health/readiness endpoints | ✅ Completed | Suitable for ALB target checks |
+| Production SMTP adapter | ✅ Completed | Code and automated tests exist |
+| Live SES delivery | ⬜ Planned | Verify identity, access mode, credentials, bounce/complaint handling |
+| HTTPS and DNS | ⬜ Planned | Route 53/ACM/ALB/CloudFront |
+| Secret management | ⬜ Planned | Secrets Manager/SSM with least privilege |
+| Network isolation | ⬜ Planned | ALB-only backend ingress and private RDS |
+| Observability | ⬜ Planned | Structured logs, metrics, dashboards, alarms, retention |
+| Backups/disaster recovery | ⬜ Planned | Automated snapshots and tested restore runbook |
+| Rate limiting | ⬜ Planned | Auth/recovery and high-risk mutation endpoints |
+| Idempotency | ⬜ Planned | Deposit, transfer, and payment |
+| Real-DB concurrency proof | ⬜ Planned | Parallel MySQL integration/stress tests |
+| Browser E2E suite | ⬜ Planned | Critical user/admin workflows |
+| CI/CD and rollback | ⬜ Planned | Automated validated deployments and previous-version rollback |
+| Real-money suitability | ⬜ Planned | Explicitly out of scope until financial, legal, provider, and audit prerequisites are complete |
+
+## 11. Testing Status
+
+### Automated Results — 2026-07-24
+
+- ✅ Completed — `npm run build`: passed.
+- ✅ Completed — `npm run lint`: passed.
+- ✅ Completed — 54 focused backend tests passed across token, email profile, SMTP, auth/email, wallet safety, JWT/security, and production-profile endpoint suites.
+- 🟡 In Progress — `mvn clean test`: 54 passed and 1 errored. `EwalletApplicationTests.contextLoads` requires the local MySQL endpoint at `localhost:3307`; MySQL was not running during this review. This is an environment-dependent test error, not a claim of application success.
+- ✅ Completed — production-profile tests confirm health/auth exposure and absence of `/api/test/**`.
+- ✅ Completed — JWT tests cover valid, missing, malformed, forged, expired, noncanonical, nonexistent-account, blocked-account, and cross-role cases.
+- ✅ Completed — wallet safety tests cover successful transfer, insufficient balance, inactive service, blocked user, rollback boundary, modeled concurrent outgoing transfers, history balance privacy, and Vietnamese response mapping.
+- ✅ Completed — email/token tests cover normalization, duplicates, hashing, expiry, single use, replacement, unverified restrictions, generic recovery response, BCrypt reset, SMTP content, and profile selection.
+- ⬜ Planned — frontend component/unit tests; none are configured.
+- ⬜ Planned — browser E2E tests.
+- ⬜ Planned — Testcontainers or dedicated MySQL integration test environment.
+- ⬜ Planned — real-MySQL concurrency/load tests.
+- ⬜ Planned — cloud smoke, failover, backup/restore, security, and performance tests.
+
+### Testing Checklist
+
+- 🟡 In Progress — start Docker MySQL and rerun the entire Maven suite until all 55 tests pass.
+- ✅ Completed — build and lint the frontend.
+- ✅ Completed — verify production profile hides test endpoints.
+- ✅ Completed — verify JWT and role/status enforcement.
+- ✅ Completed — verify wallet mutation safety at isolated controller/transaction boundaries.
+- ⬜ Planned — automate registration, verification, login, reset, profile, deposit, transfer, payment, and admin browser flows.
+- ⬜ Planned — test concurrent transfers/payments against real MySQL and prove no negative balances.
+- ⬜ Planned — test idempotent retries after idempotency is implemented.
+- ⬜ Planned — run dependency, secret, SAST, and container scans in CI.
+- ⬜ Planned — run ALB health, HTTPS redirect, CORS, DNS, and CloudFront smoke tests.
+- ⬜ Planned — terminate one Phase 2 EC2 target and verify uninterrupted service.
+- ⬜ Planned — restore an RDS snapshot into an isolated environment and verify data.
+- ⬜ Planned — test SES verification/reset delivery, bounce, complaint, and sandbox restrictions.
+
+## 12. Known Issues and Limitations
+
+| Severity | Status | Issue and required action |
+| --- | --- | --- |
+| Critical for real money | ⬜ Planned | The system is a simulation and lacks provider integration, signed webhooks, reconciliation, refunds, compliance, and legal review. |
+| High | ⬜ Planned | Wallet mutations have no idempotency keys; repeated requests may duplicate operations. |
+| High | ⬜ Planned | No real-MySQL concurrency stress proof; isolated tests model locking behavior only. |
+| High | ⬜ Planned | No live AWS network/TLS/secret-management deployment is evidenced. |
+| High | ⬜ Planned | No auth/recovery/mutation rate limiting. |
+| Medium | 🟡 In Progress | JWT in `localStorage` is exposed if an XSS defect occurs; add CSP/XSS hardening and evaluate safer token architecture. |
+| Medium | ⬜ Planned | Password reset does not revoke already issued JWTs; no refresh-token or server-side revocation system exists. |
+| Medium | ⬜ Planned | SQL and business logic are concentrated in controllers, limiting testability and maintainability. |
+| Medium | ⬜ Planned | Duplicate service-name protection is application-only and can race under concurrent creates. |
+| Medium | ⬜ Planned | No admin audit log or immutable operational audit trail. |
+| Medium | 🟡 In Progress | Full backend suite depends on a running local MySQL instance; introduce reproducible test DB provisioning. |
+| Low | ⬜ Planned | `start-dev.ps1` uses fixed waits instead of readiness-driven startup. |
+| Low | ⬜ Planned | No frontend automated unit/component coverage. |
+
+## 13. Environment Variables
+
+Never commit populated `.env.local` or `.env.production` files. Use `.env.example` and `.env.production.example` only as templates.
+
+| Variable | Status | Required where | Purpose |
+| --- | --- | --- | --- |
+| `SPRING_PROFILES_ACTIVE` | ✅ Completed | Backend | `local` or `prod` |
+| `DB_URL` | ✅ Completed | Backend | JDBC URL; production should use RDS TLS verification |
+| `DB_USERNAME` | ✅ Completed | Backend | Least-privilege runtime DB user |
+| `DB_PASSWORD` | ✅ Completed | Backend | Runtime DB password |
+| `JWT_SECRET` | ✅ Completed | Backend | Required, minimum 32 bytes; shared consistently across HA tasks |
+| `JWT_EXPIRATION` | ✅ Completed | Backend | Access-token lifetime in seconds; minimum 60, default 3600 |
+| `FRONTEND_BASE_URL` | ✅ Completed | Backend | Base URL for verification/reset links |
+| `CORS_ALLOWED_ORIGINS` | ✅ Completed | Backend | Comma-separated explicit frontend origins |
+| `EMAIL_VERIFICATION_MINUTES` | ✅ Completed | Backend | Verification token lifetime; default 1440 |
+| `PASSWORD_RESET_MINUTES` | ✅ Completed | Backend | Reset token lifetime; default 30 |
+| `MAIL_DEVELOPMENT_LOG_ENABLED` | ✅ Completed | Local backend | Logs local verification/reset links; production forces false |
+| `SES_SMTP_HOST` | ✅ Completed | Production backend | Regional SES SMTP hostname |
+| `SES_SMTP_PORT` | ✅ Completed | Production backend | SMTP STARTTLS port; default 587 |
+| `SES_SMTP_USERNAME` | ✅ Completed | Production backend | SES SMTP credential |
+| `SES_SMTP_PASSWORD` | ✅ Completed | Production backend | SES SMTP credential |
+| `MAIL_FROM_ADDRESS` | ✅ Completed | Production backend | SES-verified sender |
+| `VITE_API_BASE_URL` | ✅ Completed | Frontend build | API origin; omit for same-origin `/api` |
+| `JAVA_OPTS` | ✅ Completed | Backend container | Optional JVM runtime flags |
+| AWS region/account/resource identifiers | ⬜ Planned | CI/runtime | Define through deployment configuration, not application source |
+
+Production secrets should move to Secrets Manager or encrypted SSM Parameter Store. Non-secret configuration may use SSM, EC2 service environment files with restricted permissions, or ECS task configuration in Phase 4.
+
+## 14. Production Checklist
+
+### Application and Data
+
+- ✅ Completed — frontend production build configuration.
+- ✅ Completed — backend non-root container image.
+- ✅ Completed — production Spring profile and health probes.
+- ✅ Completed — fresh RDS schema/admin/service scripts.
+- ✅ Completed — production SMTP adapter and STARTTLS configuration.
+- 🟡 In Progress — rerun full backend suite with MySQL available.
+- ⬜ Planned — add migration automation/version tracking.
+- ⬜ Planned — add idempotency, audit logging, limits, and complete concurrency proof.
+
+### AWS, Network, and Security
+
+- ⬜ Planned — select account, region, domain, tags, owners, and cost limits.
+- ⬜ Planned — create AWS Budget alerts before long-running resources.
+- ⬜ Planned — provision VPC/subnets/routes/security groups.
+- ⬜ Planned — create private encrypted RDS with backups and deletion protection.
+- ⬜ Planned — store credentials/secrets in Secrets Manager or SSM and attach least-privilege IAM role.
+- ⬜ Planned — create EC2 runtime and managed service with restart-on-failure.
+- ⬜ Planned — create ALB, target group, health check, ACM certificate, and 80-to-443 redirect.
+- ⬜ Planned — expose backend only to ALB and RDS only to backend security groups.
+- ⬜ Planned — create private S3 origin, CloudFront distribution, and DNS records.
+- ⬜ Planned — configure WAF/rate limiting and security headers.
+- ⬜ Planned — configure SES and validate live delivery.
+
+### Operations
+
+- ⬜ Planned — centralize application/system/ALB logs with retention.
+- ⬜ Planned — alarms for target health, 5xx, latency, CPU, disk, RDS capacity/connections, and backup failures.
+- ⬜ Planned — document deployment, rollback, secret rotation, incident handling, and ownership.
+- ⬜ Planned — verify RDS restore and EC2 replacement.
+- ⬜ Planned — run post-deployment regression and capture resource IDs, URLs, versions, and evidence here.
+
+## 15. Deployment Guide
+
+Every cloud step below is planned until external evidence is recorded.
+
+### A. Preflight
+
+1. ✅ Completed — use Java 17, Maven, Node/npm, Docker, MySQL client, and AWS CLI-compatible tooling.
+2. ✅ Completed — validate locally with frontend build/lint and backend tests.
+3. 🟡 In Progress — resolve the environment-dependent context test by starting MySQL and obtain a fully green backend suite.
+4. ⬜ Planned — choose AWS region, domain names, resource names/tags, owner, backup policy, and monthly budget.
+5. ⬜ Planned — create a strong new production JWT secret; never reuse a secret from Git history.
+
+### B. Database
+
+1. ⬜ Planned — create an encrypted private MySQL 8 RDS instance with backups, deletion protection, and no public access.
+2. ⬜ Planned — allow port 3306 only from the backend security group.
+3. ⬜ Planned — create `ewallet_db` with `utf8mb4` and a least-privilege runtime user.
+4. ⬜ Planned — apply `database/rds/001_schema.sql`.
+5. ⬜ Planned — copy `002_admin_template.sql` outside the repository, replace every placeholder with protected values, and apply it once.
+6. ⬜ Planned — apply `database/rds/003_services_seed.sql`.
+7. ⬜ Planned — verify TLS with the RDS CA and `VERIFY_IDENTITY`; snapshot before later migrations.
+
+### C. Backend, Secrets, and ALB
+
+1. ✅ Completed — build the image with `docker build -t ewallet-backend:<version> backend`.
+2. ⬜ Planned — publish the versioned image to ECR or securely transfer it to EC2 for Phase 1.
+3. ⬜ Planned — create the EC2 instance, instance role, Systems Manager access, CloudWatch agent/logging, and restart-managed container/service.
+4. ⬜ Planned — store DB, JWT, and SES secrets in Secrets Manager/SSM; inject them without committing files.
+5. ⬜ Planned — set the production environment variables listed above and `SPRING_PROFILES_ACTIVE=prod`.
+6. ⬜ Planned — create an ALB target group using `/actuator/health` and register the EC2 target.
+7. ⬜ Planned — create ACM certificate and HTTPS listener; redirect HTTP 80 to HTTPS 443.
+8. ⬜ Planned — allow EC2 application ingress only from the ALB security group.
+9. ⬜ Planned — verify health, authentication, role enforcement, CORS, forwarded HTTPS links, and wallet/admin smoke tests.
+
+### D. Frontend
+
+1. ✅ Completed — build with `VITE_API_BASE_URL=https://<api-hostname>` when the API uses a separate origin.
+2. ⬜ Planned — create a private S3 bucket with block-public-access enabled.
+3. ⬜ Planned — create CloudFront with origin access control, SPA fallback behavior, compression, and HTTPS.
+4. ⬜ Planned — deploy `frontend/dist`, invalidate changed CloudFront paths, and configure Route 53/ACM.
+5. ⬜ Planned — set exact `FRONTEND_BASE_URL` and `CORS_ALLOWED_ORIGINS`, then restart/redeploy the backend safely.
+
+### E. SES, Observability, and Acceptance
+
+1. ⬜ Planned — verify SES sender/domain and DKIM, create SMTP credentials, and request production access if required.
+2. ⬜ Planned — verify registration and reset delivery plus bounce/complaint behavior.
+3. ⬜ Planned — enable CloudWatch logs, ALB access logs, alarms, retention, and AWS Budget notifications.
+4. ⬜ Planned — execute the testing checklist and backup/restore drill.
+5. ⬜ Planned — record deployed URLs/resource IDs, version, schema level, test evidence, owner, and rollback target in this document.
+
+Rollback: keep immutable frontend artifacts and backend image tags. Deregister an unhealthy backend version and restore the previous target/image. Database changes must be backward-compatible; take an RDS snapshot before migrations and never use destructive reset scripts in production.
+
+## 16. Future Roadmap
+
+## Phase 1 - ALB + Security
+
+- ✅ Completed — expose public health, liveness, and readiness probes.
+- ✅ Completed — support forwarded headers behind a reverse proxy.
+- ✅ Completed — restrict CORS to explicit origins and isolate development endpoints.
+- ✅ Completed — prepare a non-root backend image, production profile, environment templates, and RDS scripts.
+- ✅ Completed — implement production SMTP delivery compatible with Amazon SES.
+- 🟡 In Progress — achieve a completely green local verification run; one MySQL-dependent context test was blocked by the stopped local database on 2026-07-24.
+- ⬜ Planned — provision VPC, public ALB subnets, backend subnet placement, route tables, and least-privilege security groups.
+- ⬜ Planned — create private encrypted RDS, apply scripts, enforce TLS, backups, deletion protection, and restore testing.
+- ⬜ Planned — create one EC2 backend runtime with instance role, SSM access, managed restart, and CloudWatch logs.
+- ⬜ Planned — store JWT, DB, and SES secrets in Secrets Manager or encrypted SSM.
+- ⬜ Planned — create ALB target group, `/actuator/health` check, HTTPS listener, ACM certificate, and HTTP redirect.
+- ⬜ Planned — configure Route 53 API DNS and ensure EC2 accepts application traffic only from the ALB.
+- ⬜ Planned — deploy the private S3/CloudFront frontend and configure exact frontend/API origins.
+- ⬜ Planned — finish SES identity/DKIM/access setup and live verification/reset delivery testing.
+- ⬜ Planned — add WAF or application/gateway rate limits for authentication, recovery, and wallet mutations.
+- ⬜ Planned — add CSP/security headers, dependency/secret/container scanning, and credential-rotation procedures.
+- ⬜ Planned — add idempotency, admin audit logs, transaction limits, and real-MySQL concurrency tests before any real-money consideration.
+- ⬜ Planned — configure CloudWatch alarms, ALB access logs, retention, CloudTrail/security monitoring, backups, budgets, and operational runbooks.
+- ⬜ Planned — complete cloud smoke/security tests and record deployment evidence.
+
+## Phase 2 - High Availability
+
+- ⬜ Planned — create a launch template from the validated Phase 1 backend image and bootstrap configuration.
+- ⬜ Planned — place two EC2 instances in separate Availability Zones behind the existing ALB.
+- ⬜ Planned — use an Auto Scaling Group with desired/minimum capacity of two and target-group health replacement.
+- ⬜ Planned — move all instance-specific configuration/secrets to shared Secrets Manager/SSM sources.
+- ⬜ Planned — ensure both instances use the same JWT secret, production profile, compatible image version, and RDS schema.
+- ⬜ Planned — use rolling or instance-refresh deployment with ALB deregistration delay and readiness checks.
+- ⬜ Planned — verify stateless behavior; do not add sticky sessions unless a demonstrated requirement appears.
+- ⬜ Planned — load test the two-target system and tune DB connections, timeouts, JVM memory, health thresholds, and scaling policies.
+- ⬜ Planned — terminate one instance and verify ALB continuity and automatic replacement.
+- ⬜ Planned — evaluate Multi-AZ RDS after the application tier is stable and cost/availability requirements justify it.
+
+## Phase 3 - CI/CD
+
+- ⬜ Planned — add a pull-request workflow that installs pinned dependencies, runs frontend lint/build, runs all backend tests with a disposable MySQL service/Testcontainers, and uploads reports.
+- ⬜ Planned — add dependency review, secret scanning, SAST, and container-image scanning.
+- ⬜ Planned — add a protected production deployment environment with required review and GitHub OIDC; do not store long-lived AWS keys in GitHub.
+- ⬜ Planned — frontend job: build once with the production API URL, upload the versioned artifact to private S3, invalidate CloudFront, and smoke test the distribution.
+- ⬜ Planned — backend job: build/test, create a versioned container image, scan it, push it to ECR, and deploy using an EC2 rolling/instance-refresh strategy.
+- ⬜ Planned — run database migrations as a separately approved, backward-compatible step before application rollout.
+- ⬜ Planned — wait for ALB target health, run API/auth/CORS/health smoke tests, and automatically stop or roll back on failure.
+- ⬜ Planned — retain build artifacts, image digests, commit SHA, migration version, deployment logs, and previous rollback version.
+- ⬜ Planned — use concurrency controls so only one production deployment runs at a time.
+- ⬜ Planned — separate frontend and backend path filters while retaining an explicit full-deployment option.
+
+## Phase 4 - Container Orchestration
+
+- ⬜ Planned — prefer Amazon ECS on Fargate after Phase 3 is stable.
+- ⬜ Planned — push immutable backend images to ECR and define an ECS task with CPU/memory limits, health checks, CloudWatch logs, and Secrets Manager/SSM injection.
+- ⬜ Planned — run an ECS service with at least two tasks across Availability Zones behind the existing ALB.
+- ⬜ Planned — configure rolling deployment/circuit breaker, autoscaling, graceful shutdown, and deployment alarms.
+- ⬜ Planned — retain S3/CloudFront for the frontend and RDS for MySQL; do not containerize the database.
+- ⬜ Planned — update GitHub Actions to register a task-definition revision and deploy the ECS service through OIDC.
+- ⬜ Planned — evaluate ECS capacity, cost, observability, and failure recovery before considering Kubernetes.
+- ⬜ Planned — use Kubernetes/EKS only as a later learning phase: deployments, services, ingress/ALB controller, secrets integration, autoscaling, observability, network policy, upgrades, and cost management.
+- ⬜ Planned — do not migrate to EKS merely for production readiness; choose it only when learning goals or workload/platform requirements justify the added operational burden.
+
+## 17. Local Commands
+
+Start local development:
 
 ```powershell
 .\start-dev.ps1
 ```
 
-Start or stop only the Docker services while preserving data:
+Start or stop MySQL while preserving data:
 
 ```powershell
 docker compose up -d
 docker compose stop
 ```
 
-Start backend manually:
-
-```powershell
-cd backend
-$env:JWT_SECRET='<at-least-32-byte-secret>'
-$env:JWT_EXPIRATION='3600'
-.\mvnw.cmd spring-boot:run
-```
-
-`JWT_SECRET` is required. `JWT_EXPIRATION` is optional and is expressed in seconds; it defaults to `3600`.
-
-Start frontend manually:
-
-```powershell
-cd frontend
-npm run dev
-```
-
-Validate frontend:
+Validate:
 
 ```powershell
 cd frontend
 npm run build
 npm run lint
-```
 
-Validate backend:
-
-```powershell
-cd backend
+cd ..\backend
 mvn clean test
-mvn -DskipTests compile
 ```
 
-`docker compose down -v` is destructive because it removes the development database volume. It is not a routine startup/shutdown command and must not be run unless database deletion is explicitly intended and approved.
-
-Before starting this version against an existing persistent MySQL volume, apply the one-time non-destructive migration (do not rerun it):
+Build backend image:
 
 ```powershell
-Get-Content -Raw database/migrations/V001__email_verification_and_password_reset.sql | docker compose exec -T mysql mysql -uroot -proot ewallet_db
+docker build -t ewallet-backend:local backend
 ```
 
-Use the actual configured MySQL service name and credentials if they differ. Existing regular users receive unique `@local.invalid` placeholder emails and remain verified so their wallet access is preserved; update those placeholders manually if those accounts need password recovery.
+`docker compose down -v` deletes the local database volume and is not a routine command. Do not run it unless data deletion is explicitly intended.
 
-Final pre-AWS repository verification completed on 2026-07-21 after resolving the infrastructure-readiness blockers:
+For an existing local database created before email verification/reset fields, apply `database/migrations/V001__email_verification_and_password_reset.sql` once. Fresh RDS databases use the three numbered `database/rds` scripts instead.
 
-- Frontend build: passed
-- Frontend lint: passed
-- Backend tests (`mvn clean test`): passed (48 total, including production-profile endpoint isolation)
-- Backend compile (`mvn -DskipTests compile`): passed
-- Backend Docker image (`docker build -t ewallet-backend:final-verify backend`): passed with Docker Server 29.4.1
-- Production-profile container health: passed; `GET http://localhost:18080/actuator/health` returned `UP` with liveness and readiness groups, and the temporary container was removed.
-- Git whitespace validation (`git diff --check`): passed
-- Local environment tracking: `.env.local` is no longer tracked, remains available locally, and is ignored together with other real environment files; `.env.example` remains tracked.
-- Secret handling: the previous local JWT secret must be treated as exposed because `.env.local` exists in Git history and must never be reused in AWS. No replacement production secret is committed.
-- RDS readiness: the complete fresh schema, controlled one-time admin template, and UTF-8 Vietnamese production service catalog are ready in numbered, non-destructive scripts.
-- Fresh RDS execution order: `database/rds/001_schema.sql`, placeholder-completed `database/rds/002_admin_template.sql`, then `database/rds/003_services_seed.sql`.
+## 18. Handoff Rules
 
-Deployment readiness summary:
-
-- **TEST ENDPOINT BLOCKER: RESOLVED** — `/api/test/**` handlers are limited to the `local` and `test` profiles and return `404` under `prod`.
-- **AWS INFRASTRUCTURE DEPLOYMENT READINESS: READY**
-- **COMPLETE PRODUCTION APPLICATION READINESS: NOT READY — production email delivery with Amazon SES is still pending**
-
-Exact next deployment order:
-
-1. Review and commit the verified working tree.
-2. Create RDS MySQL.
-3. Apply `database/rds/001_schema.sql`.
-4. Apply a local untracked copy of the admin seed after replacing placeholders.
-5. Apply `database/rds/003_services_seed.sql`.
-6. Create and configure EC2.
-7. Run the Spring Boot backend with the `prod` profile.
-8. Connect EC2 to RDS.
-9. Deploy the React build to S3.
-10. Configure CloudFront.
-11. Configure the production API URL and CORS.
-12. Configure CloudWatch and AWS Budgets.
-13. Implement and verify Amazon SES.
-14. Run complete cloud regression tests.
-15. Complete deployment evidence and documentation.
-
-Focused automated coverage added:
-
-- Successful transfer updates sender/receiver state and records one transaction
-- Insufficient transfer balance performs no mutation
-- Inactive service payment is rejected before wallet mutation
-- Blocked user cannot access a wallet mutation endpoint
-- A wallet-operation failure triggers the Spring transaction rollback boundary
-- Two concurrent outgoing transfers cannot drive the modeled sender balance below zero
-- Vietnamese service name and description survive controller/API response mapping
-- Outgoing transfer history exposes the authenticated sender's balance before and after
-- Incoming transfer history exposes the authenticated receiver's balance before and after and omits stored sender values
-- User transaction history does not expose separate sender/receiver balance fields
-- Deposit and payment history expose the authenticated user's correct balance before and after
-- Registration requires a valid email, normalizes it, and rejects case-insensitive duplicates
-- New regular users are unverified and receive a local verification URL through the email abstraction
-- Verification and reset tokens are hashed, expiring, single-use, and replaced on reissue
-- Unverified users can log in but receive `EMAIL_NOT_VERIFIED` for deposit, transfer, and payment
-- Forgot-password responses do not reveal account existence
-- Password reset stores a BCrypt hash that matches the new password and rejects the old password
-- Public `GET /actuator/health` returns `UP` without authentication
-- Development-only `/api/test/**` handlers are absent under the `prod` profile while public auth/health and protected endpoint security behavior remain intact
-
-JWT/Spring Security coverage added:
-
-- Login returns a signed access token with expiry metadata
-- A valid token can access a protected endpoint
-- Missing, empty, malformed, forged, and expired tokens are rejected
-- Compact JWTs are rejected unless all three non-empty segments use canonical unpadded Base64URL encoding
-- Changing an existing signature character and appending `4` or `5` to a valid signature are rejected
-- Extra dots, padding, whitespace, and invalid compact-JWT characters are rejected
-- Tokens for nonexistent and blocked accounts are rejected
-- User tokens cannot access admin APIs, and admin tokens cannot access user wallet APIs
-- A token issued before an account is blocked is rejected after the database status changes
-- Login and registration endpoints remain public
-
-The deployment-preparation checks were automated; no AWS resource was created, no database schema was applied, and no new manual browser test was executed during this change.
-
-## 18. AI Handoff Instructions
-
-Future AI/Codex sessions must:
-
-1. Read this file first, then inspect the actual source before changing anything.
-2. Treat source code and executed checks as authoritative if this document becomes stale.
-3. Do not redo completed features without evidence of a defect or an explicit request.
-4. Do not replace the architecture or authentication direction without approval.
-5. Preserve the single shared frontend and existing user/admin behavior.
-6. Do not reset, delete, or recreate the database unless explicitly requested.
-7. Never run `docker compose down -v` as routine setup.
-8. Do not expose credentials, passwords, private tokens, or cloud secrets in code, logs, or reports.
-9. Keep core financial logic in Spring Boot; do not move balance mutations to Lambda.
-10. Do not hard-delete services or historical transactions; use `is_active` for service availability.
-11. Build and test after changes in proportion to risk.
-12. Report files changed and commands/tests actually executed; never claim unexecuted tests passed.
-13. Ask only when a decision materially affects architecture, authorization, external systems, or data safety.
-
-## 19. Design Decisions
-
-- Keep one frontend for user and admin.
-- Keep core wallet operations in Spring Boot.
-- Use the implemented Spring Security JWT flow as the authentication foundation.
-- Cognito is not currently planned.
-- Use S3/CloudFront for the production frontend, EC2 for the backend, and RDS for MySQL.
-- Use Lambda only for auxiliary asynchronous notifications, reporting, and alerts.
-- Do not move transfer, deposit, payment, or balance mutation logic to Lambda initially.
-- Never hard-delete services; deactivate through `is_active`.
-- Preserve historical transactions.
-- Defer real-money top-up until the security, consistency, audit, webhook, and legal prerequisites are complete.
+- ✅ Completed — preserve the completed milestones above unless source evidence proves a regression.
+- ✅ Completed — treat implementation and executed checks as authoritative over stale documentation.
+- ✅ Completed — keep one shared frontend and keep core balance mutation logic in Spring Boot.
+- ✅ Completed — preserve historical transactions and deactivate services instead of hard-deleting them.
+- ✅ Completed — never commit credentials or reuse the JWT secret previously present in Git history.
+- ✅ Completed — never destroy/recreate the local or production database as routine setup.
+- ⬜ Planned — update this file with real AWS resource identifiers and verification evidence only after deployment actually occurs.
+- ⬜ Planned — do not introduce real-money behavior until HTTPS, idempotency, audit, concurrency, webhook, reconciliation, limit, provider, legal, and operational prerequisites are complete.

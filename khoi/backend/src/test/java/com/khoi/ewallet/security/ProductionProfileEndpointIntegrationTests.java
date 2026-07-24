@@ -16,12 +16,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.profiles.active=prod",
         "spring.autoconfigure.exclude=org.springframework.boot.batch.jdbc.autoconfigure.BatchJdbcAutoConfiguration",
         "management.health.db.enabled=false",
+        "management.health.mail.enabled=false",
         "spring.datasource.url=jdbc:mysql://localhost:3307/ewallet_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh",
         "spring.datasource.username=ewallet_user",
         "spring.datasource.password=ewallet_pass",
         "jwt.secret=test-only-secret!that-is-at-least-32-bytes-long",
         "frontend.base-url=https://wallet.example.test",
-        "app.cors.allowed-origins=https://wallet.example.test"
+        "app.cors.allowed-origins=https://wallet.example.test",
+        "spring.mail.host=email-smtp.example.test",
+        "spring.mail.port=587",
+        "spring.mail.username=test-smtp-user",
+        "spring.mail.password=test-smtp-password",
+        "mail.from-address=sender@example.test"
 })
 @AutoConfigureMockMvc
 class ProductionProfileEndpointIntegrationTests {
