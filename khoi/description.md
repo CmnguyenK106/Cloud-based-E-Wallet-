@@ -4,9 +4,11 @@
 >
 > ✅ The application currently includes simulated deposit/top-up, wallet-to-wallet transfer, service payment, and transaction history. Deposit is not a future feature.
 >
-> ✅ Current production: Users → Route 53 / `cloud-ewallet.com` → CloudFront → S3 React frontend → API requests to EC2 → Docker container `ewallet-backend` → Spring Boot → Amazon RDS MySQL. Spring Boot also sends email through Amazon SES.
+> ✅ Current application deployment: Users → Route 53 / `cloud-ewallet.com` → CloudFront → S3 React frontend → API requests to EC2 → Docker container `ewallet-backend` → Spring Boot → Amazon RDS MySQL. The provider-neutral SMTP migration for Resend is complete locally; production configuration, deployment, and email delivery verification are pending.
 >
 > ✅ Production uses Docker Hub image `chaukhoi/ewallet-backend:ses-v2`, manual `docker run`, environment file `/home/ec2-user/ewallet-backend.env`, and port mapping `8080:8080`. Docker Compose and CI/CD are not used for the current production deployment.
+>
+> The `ses-v2` text is a legacy image tag and does not determine the provider used at runtime. The recommended next tag is `chaukhoi/ewallet-backend:resend-v1`; it has not been built, pushed, or deployed.
 
 ## 1. Giới thiệu dự án
 

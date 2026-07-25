@@ -8,6 +8,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.Mockito.mock;
 
@@ -18,6 +19,7 @@ class EmailServiceProfileTests {
         try (AnnotationConfigApplicationContext context = emailContext("local")) {
             assertEquals(1, context.getBeansOfType(EmailService.class).size());
             assertInstanceOf(DevelopmentEmailService.class, context.getBean(EmailService.class));
+            assertFalse(context.containsBean("smtpEmailService"));
         }
     }
 

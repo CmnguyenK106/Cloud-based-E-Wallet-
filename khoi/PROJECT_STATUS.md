@@ -17,7 +17,7 @@ This is a simulated e-wallet learning project and is not suitable for real money
 | Verification policy | ✅ Completed | Unverified users retain account access; backend blocks wallet mutations |
 | Production frontend | ✅ Completed | React on S3 through CloudFront at `cloud-ewallet.com` |
 | Production backend | ✅ Completed | `chaukhoi/ewallet-backend:ses-v2` on EC2 using manual `docker run` |
-| Database/email | ✅ Completed | Amazon RDS MySQL and Amazon SES |
+| Database/email | 🟡 Partial | Amazon RDS MySQL is deployed; Resend SMTP code migration is local-only and production configuration is pending |
 | ALB/security hardening | 🟡 In progress | Active Phase 1 |
 | High availability | ⬜ Planned | Phase 2 |
 | CI/CD | ⬜ Planned | Phase 3; no current deployment automation |
@@ -31,11 +31,15 @@ This is a simulated e-wallet learning project and is not suitable for real money
 - ✅ Completed — profile viewing/editing for authenticated users, including unverified users.
 - ✅ Completed — admin dashboard, user block/unblock, transaction inspection, and service management.
 - ✅ Completed — BCrypt, protected APIs, blocked-user enforcement, and backend email-verification restrictions.
-- ✅ Completed — current Route 53, CloudFront, S3, EC2/Docker, RDS MySQL, SES, Docker Hub, and Security Group baseline.
+- ✅ Completed — current Route 53, CloudFront, S3, EC2/Docker, RDS MySQL, Docker Hub, and Security Group baseline.
+- ✅ Code migration completed locally — SES-specific environment names were replaced by provider-neutral SMTP settings for Resend.
 - ✅ Completed — manual production backend and frontend deployment workflow.
 
 ## In Progress
 
+- 🟡 Production Resend configuration pending.
+- 🟡 Production deployment pending.
+- 🟡 Production email delivery not yet verified.
 - 🟡 In Progress — Application Load Balancer implementation.
 - 🟡 In Progress — ALB target group, listener, and health-check routing.
 - 🟡 In Progress — Security Group hardening and restriction of direct EC2 access.
@@ -119,7 +123,7 @@ Spring Boot backend
   ↓
 Amazon RDS MySQL
 
-Spring Boot backend → Amazon SES
+Spring Boot backend → outbound SMTP → Resend (pending production configuration)
 ```
 
 | Component | Status | Current implementation |
@@ -131,7 +135,8 @@ Spring Boot backend → Amazon SES
 | Runtime | ✅ Completed | `ewallet-backend`, manual `docker run`, `8080:8080` |
 | Configuration | ✅ Completed | `/home/ec2-user/ewallet-backend.env` |
 | Database | ✅ Completed | Amazon RDS MySQL |
-| Email | ✅ Completed | Amazon SES |
+| Email code | ✅ Completed locally | Provider-neutral SMTP using `JavaMailSender`; Resend defaults |
+| Production email | ⬜ Pending | Resend domain/configuration, deployment, and delivery verification |
 | Security Groups | ✅ Baseline / 🟡 hardening | Current access control; tighter ALB-to-EC2 rules are Phase 1 |
 | Production Compose | ⬜ Not used | Compose is local/legacy deployment guidance |
 | CI/CD | ⬜ Planned | Production deployment is manual |
@@ -142,12 +147,12 @@ Spring Boot backend → Amazon SES
 
 1. Run tests.
 2. Build the frontend and run ESLint.
-3. Build and push `chaukhoi/ewallet-backend:ses-v2` to Docker Hub.
+3. Build and push the recommended `chaukhoi/ewallet-backend:resend-v1` image to Docker Hub.
 
 ### EC2
 
 ```bash
-docker pull chaukhoi/ewallet-backend:ses-v2
+docker pull chaukhoi/ewallet-backend:resend-v1
 docker stop ewallet-backend
 docker rm ewallet-backend
 docker run -d \
@@ -155,7 +160,7 @@ docker run -d \
   --env-file /home/ec2-user/ewallet-backend.env \
   -p 8080:8080 \
   --restart unless-stopped \
-  chaukhoi/ewallet-backend:ses-v2
+  chaukhoi/ewallet-backend:resend-v1
 ```
 
 ### Frontend
@@ -165,9 +170,8 @@ docker run -d \
 
 ## Latest validation
 
-- ✅ Repository inventory: 55 backend test methods in eight test classes.
-- ✅ 43 focused authentication, JWT, profile-access, resend, and wallet tests passed.
-- ✅ Final wallet safety rerun: 12/12 passed.
+- ✅ Full backend suite: 60 tests in nine test classes, with zero failures, errors, or skips (`mvn test`, 2026-07-25).
+- ✅ Backend package build succeeded (`mvn package -DskipTests`, 2026-07-25).
 - ✅ Frontend production build passed.
 - ✅ Frontend ESLint passed.
 
@@ -203,7 +207,7 @@ The inventory count describes tests present in source. The 43 focused tests and 
 
 ## Historical and legacy guidance
 
-The local Docker Compose/MySQL workflow remains useful for development. Older material describing AWS as entirely future work, Docker Compose in production, ECR, App Runner, or an already-present ALB is legacy/target guidance. The current baseline is S3/CloudFront + one EC2 Docker container + RDS + SES, deployed manually.
+The local Docker Compose/MySQL workflow remains useful for development. Older material describing AWS as entirely future work, Docker Compose in production, ECR, App Runner, or an already-present ALB is legacy/target guidance. The current deployed baseline is S3/CloudFront + one EC2 Docker container + RDS, deployed manually. Resend SMTP is the intended provider, but its production configuration and deployment are pending.
 
 No Infrastructure as Code or `.github/workflows` deployment automation is present in this repository.
 
@@ -214,10 +218,12 @@ No Infrastructure as Code or `.github/workflows` deployment automation is presen
 | Frontend | Vite at the configured local origin | S3 static assets through CloudFront |
 | Backend | Spring `local` profile | Spring `prod` profile in EC2 container |
 | Database | MySQL 8 through local Docker Compose | Amazon RDS MySQL |
-| Email | Verification/reset links logged by development adapter | Authenticated STARTTLS through Amazon SES SMTP |
+| Email | Verification/reset links logged by development adapter; no SMTP credentials required | Authenticated STARTTLS through Resend SMTP is the pending target |
 | Runtime configuration | `.env.local` based on `.env.example` | `/home/ec2-user/ewallet-backend.env` |
 
-Production variables cover the database connection, JWT secret/lifetime, frontend and CORS origins, account-token lifetimes, and SES SMTP credentials/from-address. Secrets are external to the image and repository.
+Production variables cover the database connection, JWT secret/lifetime, frontend and CORS origins, account-token lifetimes, provider-neutral SMTP configuration, and from-address. `SMTP_PASSWORD` and `MAIL_FROM_ADDRESS` are required externally; secrets remain outside the image and repository.
+
+Resend domain verification will use the DNS records supplied by Resend in Cloudflare. Those email records do not replace the existing website record that directs `cloud-ewallet.com` to CloudFront/S3. EC2 initiates an outbound SMTP connection to Resend on port 587, so no inbound SMTP port is required. Production continues to use manual `docker run`; CI/CD, ALB work, and ECS remain outside this migration.
 
 ## Security overview
 
@@ -230,7 +236,7 @@ Production variables cover the database connection, JWT secret/lifetime, fronten
 | Verification restriction | ✅ Completed | Deposit, transfer, and payment return the documented 403 |
 | Financial mutation safety | ✅ Completed | Spring transactions, wallet row locks, and balance checks |
 | Token safety | ✅ Completed | Verification/reset tokens are hashed, expiring, and single-use |
-| Production mail transport | ✅ Completed | SES SMTP authentication with required STARTTLS |
+| Production mail transport | 🟡 Code complete locally | Resend SMTP authentication with required STARTTLS; deployment and delivery verification pending |
 | Network hardening | 🟡 In Progress | Security Group tightening and removal of direct EC2 exposure |
 
 ## Production readiness
@@ -248,7 +254,7 @@ Users → Route 53 / cloud-ewallet.com → CloudFront → S3 React frontend
                                       ↓ health-checked target
                               EC2 Docker backend
                                ├→ RDS MySQL
-                               └→ Amazon SES
+                               └→ outbound SMTP to Resend (pending)
 ```
 
 ### Phase 2
@@ -259,7 +265,7 @@ Users → Route 53 / cloud-ewallet.com → CloudFront → S3 React frontend
 Users / API requests ────────┤                 ├→ Amazon RDS MySQL
                               └→ EC2 backend B ─┘
 
-Each Spring Boot backend → Amazon SES
+Each Spring Boot backend → outbound SMTP to Resend (pending)
 ```
 
 These are planned diagrams. The current production diagram earlier in this document remains the deployed baseline.
