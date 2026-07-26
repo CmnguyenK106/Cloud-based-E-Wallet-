@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
 
 function HomePage() {
+  const token = useAuthStore((state) => state.token)
+
   return (
     <main className="home-page">
       <section className="hero-section">
@@ -11,14 +14,16 @@ function HomePage() {
             Register with your phone number, receive an initial balance,
             transfer money, pay virtual services, and track transactions.
           </p>
-          <div className="hero-actions">
-            <Link className="primary-button" to="/register">
-              Get Started
-            </Link>
-            <Link className="secondary-button" to="/login">
-              Log in
-            </Link>
-          </div>
+          {!token && (
+            <div className="hero-actions">
+              <Link className="primary-button" to="/register">
+                Get Started
+              </Link>
+              <Link className="secondary-button" to="/login">
+                Log in
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="wallet-showcase" aria-label="Wallet highlights">
