@@ -66,6 +66,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
   const [payingServiceId, setPayingServiceId] = useState<number | null>(null)
   const [transactionRefreshKey, setTransactionRefreshKey] = useState(0)
   const [verificationMessage, setVerificationMessage] = useState('')
+  const [showBalance, setShowBalance] = useState(true)
   const isEmailVerified = user?.emailVerified !== false
 
   const balanceText = formatBalance(wallet?.balance)
@@ -267,15 +268,38 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
   return (
     <main className="dashboard-page">
       <section className="dashboard-hero">
-        <div>
-          <span className="eyebrow">My E-Wallet</span>
-          <h1>Hello, {user?.fullName || user?.phone}</h1>
-          <p>You are logged in and can manage your wallet.</p>
+        <div className="hero-content">
+          <span className="eyebrow text-blue" style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '0.05em' }}>MY E-WALLET</span>
+          <h1 style={{ fontSize: '36px', marginTop: '12px', marginBottom: '12px' }}>Hello, <span className="highlight-text">{user?.fullName || user?.phone}</span></h1>
+          <p style={{ fontSize: '15px', color: '#475569' }}>You are logged in and can manage your wallet.</p>
           {walletMessage && <div className="form-message error">{walletMessage}</div>}
         </div>
-        <div className="balance-summary">
-          <span>Current balance</span>
-          <strong>{isWalletLoading ? 'Loading...' : balanceText}</strong>
+        <div className="balance-card">
+          <div className="balance-header">
+            <span style={{ fontSize: '12px', fontWeight: '600', letterSpacing: '0.05em' }}>CURRENT BALANCE</span>
+            <button
+              onClick={() => setShowBalance(!showBalance)}
+              className="balance-toggle"
+              title={showBalance ? "Hide balance" : "Show balance"}
+            >
+              {showBalance ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              )}
+            </button>
+          </div>
+          <div style={{ marginTop: '16px' }}>
+            <strong className="balance-amount" style={{ fontSize: '40px', fontWeight: 'bold', lineHeight: 1 }}>{isWalletLoading ? '...' : (showBalance ? balanceText : '******')}</strong>
+            <div className="balance-currency" style={{ fontSize: '14px', marginTop: '8px', fontWeight: '600', opacity: 0.9 }}>USD</div>
+          </div>
+          <svg className="wallet-watermark" xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', bottom: '20px', right: '20px' }}><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
         </div>
       </section>
 
@@ -292,101 +316,151 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
       )}
 
       {activeTab === 'wallet' && (
-        <section className="dashboard-card wallet-info-card">
+        <section className="dashboard-card glass-panel">
           <div>
-            <span className="eyebrow">Wallet Info</span>
+            <span className="eyebrow text-blue">WALLET INFO</span>
             <h2>This is your current e-wallet information.</h2>
           </div>
 
-          <div className="account-grid">
-            <div>
-              <span>Full name</span>
-              <strong>{user?.fullName || 'Not provided'}</strong>
+          <div className="info-cards-container">
+            <div className="info-card">
+              <div className="info-icon" style={{color: '#a855f7', background: 'rgba(168, 85, 247, 0.1)'}}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              </div>
+              <div className="info-text">
+                <span>FULL NAME</span>
+                <strong>{user?.fullName || 'Not provided'}</strong>
+              </div>
             </div>
-            <div>
-              <span>Phone</span>
-              <strong>{user?.phone}</strong>
+            
+            <div className="info-card">
+              <div className="info-icon" style={{color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)'}}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+              </div>
+              <div className="info-text">
+                <span>PHONE</span>
+                <strong>{user?.phone}</strong>
+              </div>
             </div>
-            <div>
-              <span>Role</span>
-              <strong>{user?.role}</strong>
+
+            <div className="info-card">
+              <div className="info-icon" style={{color: '#14b8a6', background: 'rgba(20, 184, 166, 0.1)'}}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              </div>
+              <div className="info-text">
+                <span>ROLE</span>
+                <strong>{user?.role}</strong>
+              </div>
             </div>
-            <div>
-              <span>Status</span>
-              <strong>{user?.status}</strong>
+
+            <div className="info-card">
+              <div className="info-icon" style={{color: '#22c55e', background: 'rgba(34, 197, 94, 0.1)'}}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              </div>
+              <div className="info-text">
+                <span>STATUS</span>
+                <strong>{user?.status}</strong>
+              </div>
             </div>
-            <div>
-              <span>Current balance</span>
-              <strong>{isWalletLoading ? 'Loading...' : balanceText}</strong>
+
+            <div className="info-card">
+              <div className="info-icon" style={{color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)'}}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+              </div>
+              <div className="info-text">
+                <span>CURRENT BALANCE</span>
+                <strong>{isWalletLoading ? '...' : (showBalance ? balanceText : '******')}</strong>
+              </div>
             </div>
           </div>
         </section>
       )}
 
       {activeTab === 'transfer' && (
-        <section className="dashboard-card">
-          <div>
-            <span className="eyebrow">Transfer Money</span>
-            <h2>Send money to another wallet account.</h2>
-          </div>
+        <section className="dashboard-card split-layout glass-panel">
+          <div className="layout-left">
+            <div>
+              <span className="eyebrow text-blue">TRANSFER MONEY</span>
+              <h2>Send money to another wallet account.</h2>
+            </div>
 
-          <form className="transfer-form" onSubmit={handleTransferSubmit}>
-            <label>
-              Receiver phone number
-              <input
-                placeholder="0912345678"
-                value={transferForm.receiverPhone}
-                onChange={(event) =>
-                  setTransferForm({
-                    ...transferForm,
-                    receiverPhone: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <label>
-              Amount
-              <input
-                placeholder="10.00"
-                type="number"
-                min="0"
-                step="0.01"
-                value={transferForm.amount}
-                onChange={(event) =>
-                  setTransferForm({
-                    ...transferForm,
-                    amount: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <label>
-              Note or description
-              <textarea
-                placeholder="Optional transfer note"
-                rows={4}
-                value={transferForm.description}
-                onChange={(event) =>
-                  setTransferForm({
-                    ...transferForm,
-                    description: event.target.value,
-                  })
-                }
-              />
-            </label>
-            {transferMessage && (
-              <div
-                className={`form-message ${
-                  isTransferSuccess ? 'success' : 'error'
-                }`}
-              >
-                {transferMessage}
-              </div>
-            )}
-            <button className="primary-button" disabled={isTransferLoading || !isEmailVerified}>
-              {isTransferLoading ? 'Transferring...' : 'Transfer'}
-            </button>
-          </form>
+            <form className="transfer-form" onSubmit={handleTransferSubmit}>
+              <label>
+                Receiver phone number
+                <div className="input-with-icon">
+                  <div className="input-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                  </div>
+                  <input
+                    placeholder="0912345678"
+                    value={transferForm.receiverPhone}
+                    onChange={(event) =>
+                      setTransferForm({
+                        ...transferForm,
+                        receiverPhone: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </label>
+              <label>
+                Amount
+                <div className="input-with-icon">
+                  <div className="input-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                  </div>
+                  <input
+                    placeholder="10.00"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={transferForm.amount}
+                    onChange={(event) =>
+                      setTransferForm({
+                        ...transferForm,
+                        amount: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </label>
+              <label>
+                Note or description (optional)
+                <div className="input-with-icon">
+                  <div className="input-icon" style={{alignItems: 'flex-start', paddingTop: '12px'}}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                  </div>
+                  <textarea
+                    placeholder="Optional transfer note"
+                    rows={4}
+                    value={transferForm.description}
+                    onChange={(event) =>
+                      setTransferForm({
+                        ...transferForm,
+                        description: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </label>
+              {transferMessage && (
+                <div
+                  className={`form-message ${
+                    isTransferSuccess ? 'success' : 'error'
+                  }`}
+                >
+                  {transferMessage}
+                </div>
+              )}
+              <button className="primary-button gradient-button" disabled={isTransferLoading || !isEmailVerified}>
+                {isTransferLoading ? 'Transferring...' : 'Transfer'}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginLeft: '8px'}}><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              </button>
+            </form>
+          </div>
+          <div className="layout-right illustration-container">
+            <img src="/images/transfer-illustration.png" alt="Transfer Illustration" />
+          </div>
         </section>
       )}
 
@@ -459,9 +533,9 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
       )}
 
       {activeTab === 'services' && (
-        <section className="dashboard-card">
+        <section className="dashboard-card glass-panel">
           <div>
-            <span className="eyebrow">Services</span>
+            <span className="eyebrow text-blue">SERVICES</span>
             <h2>Pay virtual services from your wallet.</h2>
           </div>
 
