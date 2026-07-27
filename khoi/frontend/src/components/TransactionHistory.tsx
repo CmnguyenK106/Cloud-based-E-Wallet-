@@ -82,7 +82,7 @@ function formatMoney(value: number | null | undefined) {
     return 'N/A'
   }
 
-  return `${moneyFormatter.format(Number(value))} coins`
+  return `${moneyFormatter.format(Number(value))} USD`
 }
 
 function formatSignedMoney(value: number) {
@@ -112,13 +112,13 @@ function sortTransactionsNewestFirst(transactions: WalletTransaction[]) {
   })
 }
 
-function TransactionMeta({ transaction }: { transaction: WalletTransaction }) {
+function TransactionMeta({ transaction, cardName }: { transaction: WalletTransaction, cardName?: string }) {
   return (
     <div className="transaction-meta-grid">
       <div>
         <span>Sender</span>
-        <strong>{transaction.senderName || 'N/A'}</strong>
-        <small>{transaction.senderPhone || 'N/A'}</small>
+        <strong>{transaction.type === 'deposit' && cardName ? cardName : (transaction.senderName || 'N/A')}</strong>
+        <small>{transaction.type === 'deposit' ? 'Bank Card' : (transaction.senderPhone || 'N/A')}</small>
       </div>
       <div>
         <span>Receiver</span>
@@ -147,6 +147,7 @@ function TransactionHistory({
   const [transactions, setTransactions] = useState<WalletTransaction[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [depositCardNames, setDepositCardNames] = useState<Record<number, string>>({})
 
   const loadTransactions = useCallback(async () => {
     setIsLoading(true)
@@ -173,6 +174,11 @@ function TransactionHistory({
 
   useEffect(() => {
     void Promise.resolve().then(() => loadTransactions())
+    try {
+      setDepositCardNames(JSON.parse(localStorage.getItem('depositCardNames') || '{}'))
+    } catch {
+      // Ignore
+    }
   }, [loadTransactions, refreshKey])
 
   const rows = useMemo(
@@ -260,8 +266,8 @@ function TransactionHistory({
                     <td>{formatDate(transaction.createdAt)}</td>
                     <td>
                       <span>
-                        From: {transaction.senderName || 'N/A'} (
-                        {transaction.senderPhone || 'N/A'})
+                        From: {transaction.type === 'deposit' && depositCardNames[transaction.id] ? depositCardNames[transaction.id] : (transaction.senderName || 'N/A')} (
+                        {transaction.type === 'deposit' ? 'Bank Card' : (transaction.senderPhone || 'N/A')})
                       </span>
                       <span>
                         To: {transaction.receiverName || 'N/A'} (
@@ -311,7 +317,7 @@ function TransactionHistory({
                 </div>
 
                 <p>{transaction.description || 'No description'}</p>
-                <TransactionMeta transaction={transaction} />
+                <TransactionMeta transaction={transaction} cardName={depositCardNames[transaction.id]} />
               </article>
             ))}
           </div>

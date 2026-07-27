@@ -35,7 +35,7 @@ function formatBalance(balance?: number) {
 }
 
 function formatCoins(value: number) {
-  return `${Number(value).toFixed(2)} coins`
+  return `${Number(value).toFixed(2)} USD`
 }
 
 function DashboardPage({ activeTab }: DashboardPageProps) {
@@ -53,6 +53,15 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
     description: '',
   })
   const [depositErrors, setDepositErrors] = useState<DepositErrors>({})
+  const [bankCardForm, setBankCardForm] = useState({
+    cardType: 'visa',
+    cardHolderName: '',
+    cardNumber: '',
+    expMonth: '',
+    expYear: '',
+    cvn: '',
+  })
+  const [bankCardErrors, setBankCardErrors] = useState<{ [key: string]: string }>({})
   const [walletMessage, setWalletMessage] = useState('')
   const [transferMessage, setTransferMessage] = useState('')
   const [isTransferSuccess, setIsTransferSuccess] = useState(false)
@@ -115,8 +124,8 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
       if (axios.isAxiosError<{ message?: string }>(err)) {
         setServicesError(
           err.response?.data?.message ||
-            err.message ||
-            'Cannot load services',
+          err.message ||
+          'Cannot load services',
         )
       } else {
         setServicesError('Cannot load services')
@@ -169,12 +178,44 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
     if (!isEmailVerified) { showToast('Verify your email before depositing funds.', 'error'); return }
 
     const result = depositSchema.safeParse(depositForm)
-    if (!result.success) {
-      const fieldErrors = result.error.flatten().fieldErrors
-      setDepositErrors({
-        amount: fieldErrors.amount?.[0],
-        description: fieldErrors.description?.[0],
-      })
+
+    const currentYear = new Date().getFullYear()
+    const currentMonth = new Date().getMonth() + 1
+    let hasBankCardError = false
+    const newBankCardErrors: { [key: string]: string } = {}
+
+    if (!bankCardForm.cardHolderName || !bankCardForm.cardHolderName.trim()) { newBankCardErrors.cardHolderName = 'Card holder name is required'; hasBankCardError = true; }
+
+    if (!bankCardForm.cardNumber) { newBankCardErrors.cardNumber = 'Card number is required'; hasBankCardError = true; }
+    else if (!/^\d{12}$/.test(bankCardForm.cardNumber.replace(/\s+/g, ''))) { newBankCardErrors.cardNumber = 'Card number must be exactly 12 digits'; hasBankCardError = true; }
+
+    if (!bankCardForm.expMonth) { newBankCardErrors.expMonth = 'Month is required'; hasBankCardError = true; }
+    if (!bankCardForm.expYear) { newBankCardErrors.expYear = 'Year is required'; hasBankCardError = true; }
+
+    if (bankCardForm.expMonth && bankCardForm.expYear) {
+      const expY = parseInt(bankCardForm.expYear, 10)
+      const expM = parseInt(bankCardForm.expMonth, 10)
+      if (expY < currentYear || (expY === currentYear && expM < currentMonth)) {
+        newBankCardErrors.expMonth = 'Expiration date must be in the future'
+        hasBankCardError = true
+      }
+    }
+
+    if (!bankCardForm.cvn) { newBankCardErrors.cvn = 'CVN is required'; hasBankCardError = true; }
+    else if (!/^\d{3}$/.test(bankCardForm.cvn)) { newBankCardErrors.cvn = 'CVN must be exactly 3 digits'; hasBankCardError = true; }
+
+    setBankCardErrors(newBankCardErrors)
+
+    if (!result.success || hasBankCardError) {
+      if (!result.success) {
+        const fieldErrors = result.error.flatten().fieldErrors
+        setDepositErrors({
+          amount: fieldErrors.amount?.[0],
+          description: fieldErrors.description?.[0],
+        })
+      } else {
+        setDepositErrors({})
+      }
       return
     }
 
@@ -192,6 +233,15 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
       })
       setWalletData(user, { ...wallet, balance: data.balance })
       setDepositForm({ amount: '', description: '' })
+
+      if (data.transaction && data.transaction.id) {
+        const names = JSON.parse(localStorage.getItem('depositCardNames') || '{}')
+        names[data.transaction.id] = bankCardForm.cardHolderName.trim()
+        localStorage.setItem('depositCardNames', JSON.stringify(names))
+      }
+
+      setBankCardForm({ cardType: 'visa', cardHolderName: '', cardNumber: '', expMonth: '', expYear: '', cvn: '' })
+      setBankCardErrors({})
       showToast('Deposit completed successfully.', 'success')
       await loadWallet()
       setTransactionRefreshKey((value) => value + 1)
@@ -199,8 +249,8 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
       if (axios.isAxiosError<{ message?: string }>(err)) {
         showToast(
           err.response?.data?.message ||
-            err.message ||
-            'Unable to complete deposit.',
+          err.message ||
+          'Unable to complete deposit.',
           'error',
         )
       } else {
@@ -247,8 +297,8 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
       if (axios.isAxiosError<{ message?: string }>(err)) {
         showToast(
           err.response?.data?.message ||
-            err.message ||
-            'Unable to complete payment.',
+          err.message ||
+          'Unable to complete payment.',
           'error',
         )
       } else {
@@ -261,8 +311,8 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
 
   const paymentModalMessage = selectedService
     ? selectedHasInsufficientBalance
-      ? `Pay ${formatCoins(selectedServicePrice)} for ${selectedService.name}? Current balance: ${balanceText} coins. Insufficient wallet balance.`
-      : `Pay ${formatCoins(selectedServicePrice)} for ${selectedService.name}? Current balance: ${balanceText} coins. Remaining balance: ${formatCoins(selectedRemainingBalance || 0)}.`
+      ? `Pay ${formatCoins(selectedServicePrice)} for ${selectedService.name}? Current balance: ${balanceText} USD. Insufficient wallet balance.`
+      : `Pay ${formatCoins(selectedServicePrice)} for ${selectedService.name}? Current balance: ${balanceText} USD. Remaining balance: ${formatCoins(selectedRemainingBalance || 0)}.`
     : ''
 
   return (
@@ -324,7 +374,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
 
           <div className="info-cards-container">
             <div className="info-card">
-              <div className="info-icon" style={{color: '#a855f7', background: 'rgba(168, 85, 247, 0.1)'}}>
+              <div className="info-icon" style={{ color: '#a855f7', background: 'rgba(168, 85, 247, 0.1)' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
               </div>
               <div className="info-text">
@@ -332,9 +382,9 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
                 <strong>{user?.fullName || 'Not provided'}</strong>
               </div>
             </div>
-            
+
             <div className="info-card">
-              <div className="info-icon" style={{color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)'}}>
+              <div className="info-icon" style={{ color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
               </div>
               <div className="info-text">
@@ -344,7 +394,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
             </div>
 
             <div className="info-card">
-              <div className="info-icon" style={{color: '#14b8a6', background: 'rgba(20, 184, 166, 0.1)'}}>
+              <div className="info-icon" style={{ color: '#14b8a6', background: 'rgba(20, 184, 166, 0.1)' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
               </div>
               <div className="info-text">
@@ -354,7 +404,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
             </div>
 
             <div className="info-card">
-              <div className="info-icon" style={{color: '#22c55e', background: 'rgba(34, 197, 94, 0.1)'}}>
+              <div className="info-icon" style={{ color: '#22c55e', background: 'rgba(34, 197, 94, 0.1)' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
               </div>
               <div className="info-text">
@@ -364,7 +414,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
             </div>
 
             <div className="info-card">
-              <div className="info-icon" style={{color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)'}}>
+              <div className="info-icon" style={{ color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
               </div>
               <div className="info-text">
@@ -392,7 +442,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                   </div>
                   <input
-                    placeholder="0912345678"
+
                     value={transferForm.receiverPhone}
                     onChange={(event) =>
                       setTransferForm({
@@ -410,7 +460,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
                   </div>
                   <input
-                    placeholder="10.00"
+
                     type="number"
                     min="0"
                     step="0.01"
@@ -427,7 +477,7 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
               <label>
                 Note or description (optional)
                 <div className="input-with-icon">
-                  <div className="input-icon" style={{alignItems: 'flex-start', paddingTop: '12px'}}>
+                  <div className="input-icon" style={{ alignItems: 'flex-start', paddingTop: '12px' }}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                   </div>
                   <textarea
@@ -445,16 +495,15 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
               </label>
               {transferMessage && (
                 <div
-                  className={`form-message ${
-                    isTransferSuccess ? 'success' : 'error'
-                  }`}
+                  className={`form-message ${isTransferSuccess ? 'success' : 'error'
+                    }`}
                 >
                   {transferMessage}
                 </div>
               )}
               <button className="primary-button gradient-button" disabled={isTransferLoading || !isEmailVerified}>
                 {isTransferLoading ? 'Transferring...' : 'Transfer'}
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginLeft: '8px'}}><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '8px' }}><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
               </button>
             </form>
           </div>
@@ -474,38 +523,131 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
           <form className="transfer-form deposit-form" onSubmit={handleDepositSubmit}>
             <label>
               Amount
-              <input
-                placeholder="100.00"
-                type="number"
-                min="1"
-                max="10000000"
-                step="0.01"
-                value={depositForm.amount}
-                onChange={(event) =>
-                  setDepositForm({
-                    ...depositForm,
-                    amount: event.target.value,
-                  })
-                }
-              />
+              <div className="input-with-icon">
+                <div className="input-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                </div>
+                <input
+
+                  type="number"
+                  min="1"
+                  max="10000000"
+                  step="0.01"
+                  value={depositForm.amount}
+                  onChange={(event) =>
+                    setDepositForm({
+                      ...depositForm,
+                      amount: event.target.value,
+                    })
+                  }
+                />
+              </div>
               {depositErrors.amount && (
                 <span className="field-error">{depositErrors.amount}</span>
               )}
             </label>
+
+            <div className="bank-card-details" style={{ display: 'grid', gap: '20px', padding: '24px', margin: '12px 0 24px', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px' }}>
+
+              <label>
+                Card Type
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginTop: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input type="radio" name="cardType" value="visa" checked={bankCardForm.cardType === 'visa'} onChange={(e) => setBankCardForm({ ...bankCardForm, cardType: e.target.value })} style={{ width: 'auto', margin: 0, padding: 0 }} />
+                    <div style={{ border: '1px solid #cbd5e1', padding: '2px 6px', backgroundColor: '#fff', borderRadius: '4px', display: 'flex', alignItems: 'center' }}>
+                      <span style={{ color: '#1a1f71', fontWeight: 800, fontStyle: 'italic', fontSize: '14px', lineHeight: 1 }}>VISA</span>
+                    </div> Visa
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input type="radio" name="cardType" value="mastercard" checked={bankCardForm.cardType === 'mastercard'} onChange={(e) => setBankCardForm({ ...bankCardForm, cardType: e.target.value })} style={{ width: 'auto', margin: 0, padding: 0 }} />
+                    <div style={{ border: '1px solid #cbd5e1', padding: '4px 6px', backgroundColor: '#fff', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <div style={{ display: 'flex' }}>
+                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#eb001b', zIndex: 1 }}></div>
+                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#f79e1b', marginLeft: '-5px' }}></div>
+                      </div>
+                    </div> Mastercard
+                  </label>
+
+                </div>
+              </label>
+
+              <label>
+                Card Number
+                <input type="text" placeholder="XXXX XXXX XXXX XXXX" maxLength={19} value={bankCardForm.cardNumber} onChange={(e) => setBankCardForm({ ...bankCardForm, cardNumber: e.target.value })} style={{ marginTop: '8px' }} />
+                {bankCardErrors.cardNumber && <span className="field-error">{bankCardErrors.cardNumber}</span>}
+              </label>
+
+              <label>
+                Card Holder Name
+                <input type="text" value={bankCardForm.cardHolderName} onChange={(e) => setBankCardForm({ ...bankCardForm, cardHolderName: e.target.value.toUpperCase() })} style={{ marginTop: '8px' }} />
+                {bankCardErrors.cardHolderName && <span className="field-error">{bankCardErrors.cardHolderName}</span>}
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <label>
+                  Expiration Month
+                  <select value={bankCardForm.expMonth} onChange={(e) => setBankCardForm({ ...bankCardForm, expMonth: e.target.value })} style={{ cursor: 'pointer', marginTop: '8px' }}>
+                    <option value="" disabled>Month</option>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                      <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>
+                    ))}
+                  </select>
+                  {bankCardErrors.expMonth && <span className="field-error">{bankCardErrors.expMonth}</span>}
+                </label>
+                <label>
+                  Expiration Year
+                  <select value={bankCardForm.expYear} onChange={(e) => setBankCardForm({ ...bankCardForm, expYear: e.target.value })} style={{ cursor: 'pointer', marginTop: '8px' }}>
+                    <option value="" disabled>Year</option>
+                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                  {bankCardErrors.expYear && <span className="field-error">{bankCardErrors.expYear}</span>}
+                </label>
+              </div>
+
+              <label>
+                CVV
+                <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 500, lineHeight: 1.4, marginTop: '4px', marginBottom: '8px' }}>
+                  This code is a three or four digit number printed on the back or front of credit cards.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input type="text" style={{ width: '90px' }} maxLength={4} placeholder="XXX" value={bankCardForm.cvn} onChange={(e) => setBankCardForm({ ...bankCardForm, cvn: e.target.value })} />
+                  <div style={{ display: 'flex', alignItems: 'center', position: 'relative', height: '32px' }}>
+                    <svg width="48" height="32" viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="0.5" y="0.5" width="41" height="25" rx="3.5" fill="#E2E8F0" stroke="#94A3B8" />
+                      <rect x="0" y="4" width="42" height="5" fill="#0F172A" />
+                      <rect x="18" y="14" width="20" height="9" fill="white" />
+                      <text fill="#0F172A" xmlSpace="preserve" style={{ whiteSpace: 'pre' }} fontFamily="Inter, sans-serif" fontSize="7" fontStyle="italic" letterSpacing="0em"><tspan x="20" y="21.5">123</tspan></text>
+                      <circle cx="34" cy="22" r="7" fill="white" stroke="#10B981" strokeWidth="1.5" />
+                      <text fill="#10B981" xmlSpace="preserve" style={{ whiteSpace: 'pre' }} fontFamily="Inter, sans-serif" fontSize="6" fontWeight="bold" letterSpacing="0em"><tspan x="30" y="24">123</tspan></text>
+                      <path d="M39.5 27.5L44 32" stroke="#64748B" strokeWidth="2.5" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                </div>
+                {bankCardErrors.cvn && <span className="field-error">{bankCardErrors.cvn}</span>}
+              </label>
+            </div>
+
             <label>
-              Description
-              <textarea
-                placeholder="Optional deposit note"
-                rows={4}
-                maxLength={255}
-                value={depositForm.description}
-                onChange={(event) =>
-                  setDepositForm({
-                    ...depositForm,
-                    description: event.target.value,
-                  })
-                }
-              />
+              Note or description (optional)
+              <div className="input-with-icon">
+                <div className="input-icon" style={{ alignItems: 'flex-start', paddingTop: '12px' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                </div>
+                <textarea
+                  placeholder="Optional deposit note"
+                  rows={4}
+                  maxLength={255}
+                  value={depositForm.description}
+                  onChange={(event) =>
+                    setDepositForm({
+                      ...depositForm,
+                      description: event.target.value,
+                    })
+                  }
+                />
+              </div>
               {depositErrors.description && (
                 <span className="field-error">
                   {depositErrors.description}
@@ -523,6 +665,8 @@ function DashboardPage({ activeTab }: DashboardPageProps) {
                 onClick={() => {
                   setDepositForm({ amount: '', description: '' })
                   setDepositErrors({})
+                  setBankCardForm({ cardType: 'visa', cardHolderName: '', cardNumber: '', expMonth: '', expYear: '', cvn: '' })
+                  setBankCardErrors({})
                 }}
               >
                 Clear

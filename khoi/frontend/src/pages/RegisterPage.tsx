@@ -63,7 +63,7 @@ function RegisterPage() {
         <div className="auth-heading">
           <span className="eyebrow">Open your wallet</span>
           <h1>Create your account</h1>
-          <p>Create your wallet account and receive 10 coins.</p>
+          <p>Create your wallet account and receive 10 USD.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">

@@ -11,7 +11,7 @@ type FormErrors = Partial<Record<keyof ServiceForm, string>>
 const priceFormatter = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' })
 const emptyForm: ServiceForm = { name: '', price: '', description: '', isActive: true }
-const formatPrice = (value: number) => `${priceFormatter.format(Number(value))} coins`
+const formatPrice = (value: number) => `${priceFormatter.format(Number(value))} USD`
 const formatDate = (value: string | null) => {
   if (!value) return '—'
   const date = new Date(value)

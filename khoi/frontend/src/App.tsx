@@ -349,7 +349,7 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
                               {tx.type === 'payment' ? `Bạn đã thanh toán ` :
                                 tx.type === 'deposit' ? `Tài khoản nhận thêm ` :
                                   `Bạn đã ${tx.senderUserId === user?.id ? 'chuyển' : 'nhận'} `}
-                              <strong style={{ color: amountColor }}>{amountPrefix}{tx.amount} coins</strong>
+                              <strong style={{ color: amountColor }}>{amountPrefix}{tx.amount} USD</strong>
                               {tx.type === 'payment' ? ` cho dịch vụ ${tx.serviceName}.` : '.'}
                             </div>
                             <div style={{ fontSize: '0.75rem', color: '#a0aec0', marginTop: '4px' }}>

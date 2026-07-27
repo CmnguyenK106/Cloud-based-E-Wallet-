@@ -26,7 +26,7 @@ function formatMoney(value: number | null) {
     return 'N/A'
   }
 
-  return `${moneyFormatter.format(Number(value))} coins`
+  return `${moneyFormatter.format(Number(value))} USD`
 }
 
 function formatDate(value: string | null) {

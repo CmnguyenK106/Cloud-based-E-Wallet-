@@ -45,11 +45,11 @@ function HomePage() {
         </article>
         <article>
           <h2>Mock Deposit</h2>
-          <p>Add demo coins to test wallet balance changes.</p>
+          <p>Add demo USD to test wallet balance changes.</p>
         </article>
         <article>
           <h2>Fast Transfer</h2>
-          <p>Send coins to another account by phone number.</p>
+          <p>Send USD to another account by phone number.</p>
         </article>
         <article>
           <h2>Virtual Payment</h2>

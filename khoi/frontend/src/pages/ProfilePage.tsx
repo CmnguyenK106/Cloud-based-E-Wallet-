@@ -28,7 +28,7 @@ function formatMoney(value: number | null | undefined) {
     return 'N/A'
   }
 
-  return `${moneyFormatter.format(Number(value))} coins`
+  return `${moneyFormatter.format(Number(value))} USD`
 }
 
 function getFormFromAccount(account: CurrentAccountResponse): ProfileForm {

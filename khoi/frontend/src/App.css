@@ -1101,6 +1101,7 @@ input {
 }
 
 .transfer-form input,
+.transfer-form select,
 .transfer-form textarea {
   width: 100%;
   border: 1px solid #cbd5e1;
@@ -1112,6 +1113,7 @@ input {
 }
 
 .transfer-form input:focus,
+.transfer-form select:focus,
 .transfer-form textarea:focus {
   border-color: #2563eb;
   outline: 3px solid rgba(37, 99, 235, 0.15);

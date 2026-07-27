@@ -20,7 +20,7 @@ function display(value: string | number | null | undefined) {
   return value === null || value === undefined || value === '' ? '—' : String(value)
 }
 function formatMoney(value: number | null) {
-  return value === null || Number.isNaN(Number(value)) ? '—' : `${money.format(Number(value))} coins`
+  return value === null || Number.isNaN(Number(value)) ? '—' : `${money.format(Number(value))} USD`
 }
 function formatDate(value: string | null) {
   if (!value) return '—'
