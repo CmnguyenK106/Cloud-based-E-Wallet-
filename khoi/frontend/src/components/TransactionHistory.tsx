@@ -82,7 +82,7 @@ function formatMoney(value: number | null | undefined) {
     return 'N/A'
   }
 
-  return `${moneyFormatter.format(Number(value))} coins`
+  return `${moneyFormatter.format(Number(value))} USD`
 }
 
 function formatSignedMoney(value: number) {
@@ -103,6 +103,16 @@ function formatDate(value: string | null) {
   return dateFormatter.format(date)
 }
 
+function displayDescription(transaction: WalletTransaction) {
+  if (
+    transaction.type === 'deposit' &&
+    transaction.description?.trim().toLowerCase() === 'simulated deposit'
+  ) {
+    return 'Deposit'
+  }
+  return transaction.description
+}
+
 function sortTransactionsNewestFirst(transactions: WalletTransaction[]) {
   return [...transactions].sort((left, right) => {
     const leftTime = left.createdAt ? new Date(left.createdAt).getTime() : 0
@@ -113,12 +123,13 @@ function sortTransactionsNewestFirst(transactions: WalletTransaction[]) {
 }
 
 function TransactionMeta({ transaction }: { transaction: WalletTransaction }) {
+  const isDeposit = transaction.type === 'deposit'
   return (
     <div className="transaction-meta-grid">
       <div>
         <span>Sender</span>
-        <strong>{transaction.senderName || 'N/A'}</strong>
-        <small>{transaction.senderPhone || 'N/A'}</small>
+        <strong>{isDeposit ? 'Bank Card' : transaction.senderName || 'N/A'}</strong>
+        {!isDeposit && <small>{transaction.senderPhone || 'N/A'}</small>}
       </div>
       <div>
         <span>Receiver</span>
@@ -237,7 +248,7 @@ function TransactionHistory({
                   <tr key={transaction.id}>
                     <td>
                       <strong>{transaction.transactionCode}</strong>
-                      <span>{transaction.description || display.label}</span>
+                      <span>{displayDescription(transaction) || display.label}</span>
                     </td>
                     <td>
                       <span className="transaction-type-badge">
@@ -259,10 +270,14 @@ function TransactionHistory({
                     </td>
                     <td>{formatDate(transaction.createdAt)}</td>
                     <td>
-                      <span>
-                        From: {transaction.senderName || 'N/A'} (
-                        {transaction.senderPhone || 'N/A'})
-                      </span>
+                      {transaction.type === 'deposit' ? (
+                        <span>From: Bank Card</span>
+                      ) : (
+                        <span>
+                          From: {transaction.senderName || 'N/A'} (
+                          {transaction.senderPhone || 'N/A'})
+                        </span>
+                      )}
                       <span>
                         To: {transaction.receiverName || 'N/A'} (
                         {transaction.receiverPhone || 'N/A'})
@@ -310,7 +325,7 @@ function TransactionHistory({
                   </span>
                 </div>
 
-                <p>{transaction.description || 'No description'}</p>
+                <p>{displayDescription(transaction) || 'No description'}</p>
                 <TransactionMeta transaction={transaction} />
               </article>
             ))}

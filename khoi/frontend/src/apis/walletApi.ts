@@ -22,6 +22,11 @@ export type TransferResponse = {
   }
 }
 
+export type RecipientPreview = {
+  phone: string
+  fullName: string
+}
+
 export type DepositPayload = {
   amount: number
   description?: string
@@ -88,6 +93,18 @@ export const walletApi = {
       data,
       {
         headers: getAuthHeaders(),
+      },
+    )
+    return response.data
+  },
+
+  getRecipient: async (phone: string, signal?: AbortSignal) => {
+    const response = await axiosClient.get<RecipientPreview>(
+      '/user/wallet/recipient',
+      {
+        headers: getAuthHeaders(),
+        params: { phone },
+        signal,
       },
     )
     return response.data

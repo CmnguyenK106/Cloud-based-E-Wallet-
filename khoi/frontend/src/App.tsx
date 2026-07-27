@@ -5,7 +5,7 @@ import './App.css'
 import { accountApi, accountToAuthUser } from './apis/accountApi'
 import { authApi } from './apis/authApi'
 import { EMAIL_VERIFICATION_REQUIRED_EVENT } from './apis/axiosClient'
-import { walletApi } from './apis/walletApi'
+import { walletApi, type WalletTransaction } from './apis/walletApi'
 import AdminRoute from './components/routes/AdminRoute'
 import ProtectedRoute from './components/routes/ProtectedRoute'
 import UserRoute from './components/routes/UserRoute'
@@ -95,7 +95,7 @@ function SessionMonitor() {
           if (code === 'ACCOUNT_BLOCKED') {
             clearSession(
               err.response?.data?.message ||
-                'Your account has been blocked by an administrator.',
+              'Your account has been blocked by an administrator.',
             )
           } else if (code === 'UNAUTHORIZED') {
             clearSession('Your session has expired. Please log in again.')
@@ -131,7 +131,7 @@ function EmailVerificationBanner() {
       const detail = (event as CustomEvent<{ message?: string }>).detail
       setMessage(
         detail?.message ||
-          'Please verify your email before performing this action.',
+        'Please verify your email before performing this action.',
       )
     }
 
@@ -158,7 +158,7 @@ function EmailVerificationBanner() {
       setMessage(
         axios.isAxiosError<SessionErrorResponse>(error)
           ? error.response?.data?.message ||
-              'Unable to resend the verification email.'
+          'Unable to resend the verification email.'
           : 'Unable to resend the verification email.',
       )
     } finally {
@@ -195,10 +195,32 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
   const setWalletData = useAuthStore((state) => state.setWalletData)
   const logout = useAuthStore((state) => state.logout)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState<WalletTransaction[]>([])
+  const [hasNewNotifications, setHasNewNotifications] = useState(false)
+  const prevBalanceRef = useRef(wallet?.balance)
 
   const balanceText = formatBalance(wallet?.balance)
   const isUser = user?.role === 'user'
   const isAdmin = user?.role === 'admin'
+
+  useEffect(() => {
+    if (
+      wallet?.balance !== undefined &&
+      prevBalanceRef.current !== undefined &&
+      wallet.balance !== prevBalanceRef.current
+    ) {
+      setHasNewNotifications(true)
+      walletApi.getMyTransactions().then(data => setNotifications(data.transactions || [])).catch(console.error)
+    }
+    prevBalanceRef.current = wallet?.balance
+  }, [wallet?.balance])
+
+  useEffect(() => {
+    if (isUser) {
+      walletApi.getMyTransactions().then(data => setNotifications(data.transactions || [])).catch(console.error)
+    }
+  }, [isUser])
 
   useEffect(() => {
     if (!token || user?.role !== 'user') {
@@ -230,136 +252,228 @@ function AppHeader({ activeTab, setActiveTab }: AppHeaderProps) {
   return (
     <>
       <header className="app-header">
-        <Link className="brand" to="/">
-          <span className="brand-mark">E</span>
-          <span>E-Wallet</span>
-        </Link>
-
-        <div className="search-bar">
-          <span aria-hidden="true">Search</span>
-          <input placeholder="Search transactions, phone number, services..." />
+        <div className="header-left">
+          <Link className="brand" to="/">
+            <span className="brand-mark" style={{ background: 'linear-gradient(135deg, #2563eb, #a855f7)', color: 'white', border: 'none' }}>E</span>
+            <span style={{ color: '#0f172a', fontWeight: 800 }}>E-Wallet</span>
+          </Link>
+          <div className="search-bar" style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input placeholder="Search transactions, phone number, services..." style={{ background: 'transparent' }} />
+          </div>
         </div>
 
-        <nav className="nav-menu" aria-label="Main navigation">
-          <Link to="/">Home</Link>
-          {isUser && (
-            <>
-              <button onClick={() => openDashboardTab('wallet')}>Wallet</button>
-              <button onClick={() => openDashboardTab('history')}>
-                Transactions
-              </button>
-              <button onClick={() => openDashboardTab('deposit')}>
-                Deposit
-              </button>
-              <button onClick={() => openDashboardTab('services')}>
-                Services
-              </button>
-            </>
-          )}
-          {isAdmin && (
-            <>
-              <Link to="/admin">Admin Dashboard</Link>
-              <Link to="/admin/users">Users</Link>
-              <Link to="/admin/transactions">Transactions</Link>
-              <Link to="/admin/services">Services</Link>
-              <button onClick={handleLogout}>Logout</button>
-            </>
-          )}
-        </nav>
+        <div className="header-right">
+          <nav className="nav-menu" aria-label="Main navigation">
+            <Link to="/">Home</Link>
+            {isUser && (
+              <>
+                <button onClick={() => openDashboardTab('wallet')}>Wallet</button>
+                <button onClick={() => openDashboardTab('history')}>
+                  Transactions
+                </button>
+                <button onClick={() => openDashboardTab('deposit')}>
+                  Deposit
+                </button>
+                <button onClick={() => openDashboardTab('services')}>
+                  Services
+                </button>
+              </>
+            )}
+            {isAdmin && (
+              <>
+                <Link to="/admin">Admin Dashboard</Link>
+                <Link to="/admin/users">Users</Link>
+                <Link to="/admin/transactions">Transactions</Link>
+                <Link to="/admin/services">Services</Link>
+                <button onClick={handleLogout}>Logout</button>
+              </>
+            )}
+          </nav>
 
-        <div className="account-menu">
-          {token ? (
-            <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {token && isUser && (
+            <div style={{ position: 'relative' }}>
               <button
                 className="user-icon-button"
-                aria-label="Open account menu"
-                onClick={() => setIsDropdownOpen((value) => !value)}
+                onClick={() => {
+                  setIsNotificationsOpen(!isNotificationsOpen)
+                  setIsDropdownOpen(false)
+                  setHasNewNotifications(false)
+                  if (!isNotificationsOpen) {
+                    walletApi.getMyTransactions().then(data => setNotifications(data.transactions || [])).catch(console.error)
+                  }
+                }}
+                aria-label="Notifications"
               >
-                <span aria-hidden="true" />
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                {hasNewNotifications && (
+                  <div style={{ position: 'absolute', top: 10, right: 12, width: 8, height: 8, backgroundColor: '#e53e3e', borderRadius: '50%' }}></div>
+                )}
               </button>
 
-              {isDropdownOpen && (
-                <div className="account-dropdown">
-                  <div className="dropdown-heading">
-                    <strong>{user?.fullName || user?.phone || 'Account'}</strong>
-                    <span>Account details</span>
-                  </div>
-                  <div>
-                    <span>Full name</span>
-                    <strong>{user?.fullName || 'Not provided'}</strong>
-                  </div>
-                  <div>
-                    <span>Phone</span>
-                    <strong>{user?.phone || 'Unknown'}</strong>
-                  </div>
-                  <div>
-                    <span>Role</span>
-                    <strong>{user?.role || 'Unknown'}</strong>
-                  </div>
-                  <div>
-                    <span>Status</span>
-                    <strong>{user?.status || 'Unknown'}</strong>
-                  </div>
-                  {isAdmin && (
-                    <div>
-                      <span>Position</span>
-                      <strong>{user?.position || 'N/A'}</strong>
-                    </div>
+              {isNotificationsOpen && (
+                <div className="notifications-dropdown">
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold' }}>Thông Báo Mới Nhận</div>
+                  {notifications.length === 0 ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#718096' }}>Không có thông báo nào</div>
+                  ) : (
+                    notifications.map(tx => {
+                      const isIncoming = tx.type === 'deposit' || (tx.type === 'transfer' && tx.receiverUserId === user?.id);
+                      const amountColor = isIncoming ? '#38a169' : '#e53e3e';
+                      const amountPrefix = isIncoming ? '+' : '-';
+
+                      return (
+                        <div key={tx.id} style={{ padding: '12px 16px', borderBottom: '1px solid #f7fafc', display: 'flex', gap: '12px' }}>
+                          <div style={{
+                            width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
+                            backgroundColor: tx.type === 'deposit' ? '#c6f6d5' : tx.type === 'payment' ? '#fed7d7' : '#bee3f8',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', color: tx.type === 'deposit' ? '#276749' : tx.type === 'payment' ? '#9b2c2c' : '#2c5282'
+                          }}>
+                            {tx.type === 'deposit' ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="8 12 12 16 16 12"></polyline><line x1="12" y1="8" x2="12" y2="16"></line></svg>
+                            ) : tx.type === 'payment' ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '4px' }}>
+                              {tx.type === 'deposit' ? 'Nạp tiền thành công' : tx.type === 'payment' ? 'Thanh toán dịch vụ' : 'Chuyển tiền'}
+                            </div>
+                            <div style={{ fontSize: '0.85rem', color: '#4a5568' }}>
+                              {tx.type === 'payment' ? `Bạn đã thanh toán ` :
+                                tx.type === 'deposit' ? `Tài khoản nhận thêm ` :
+                                  `Bạn đã ${tx.senderUserId === user?.id ? 'chuyển' : 'nhận'} `}
+                              <strong style={{ color: amountColor }}>{amountPrefix}{tx.amount} USD</strong>
+                              {tx.type === 'payment' ? ` cho dịch vụ ${tx.serviceName}.` : '.'}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#a0aec0', marginTop: '4px' }}>
+                              {new Date(tx.createdAt || '').toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
                   )}
-                  {isUser && (
-                    <div>
-                      <span>Current balance</span>
-                      <strong>{balanceText}</strong>
-                    </div>
-                  )}
-                  <button className="secondary-button" onClick={openProfile}>
-                    Edit Profile
-                  </button>
-                  <button className="logout-button" onClick={handleLogout}>
-                    Logout
-                  </button>
                 </div>
               )}
-            </>
-          ) : (
-            <Link className="account-button" to="/login">
-              Account
-            </Link>
+            </div>
           )}
+
+          <div className="account-menu">
+            {token ? (
+              <>
+                <button
+                  className="user-icon-button"
+                  aria-label="Open account menu"
+                  onClick={() => {
+                    setIsDropdownOpen((value) => !value)
+                    setIsNotificationsOpen(false)
+                  }}
+                >
+                  <span aria-hidden="true" />
+                </button>
+
+                {isDropdownOpen && (
+                  <div className="account-dropdown">
+                    <div className="dropdown-heading">
+                      <strong>{user?.fullName || user?.phone || 'Account'}</strong>
+                      <span>Account details</span>
+                    </div>
+                    <div>
+                      <span>Full name</span>
+                      <strong>{user?.fullName || 'Not provided'}</strong>
+                    </div>
+                    <div>
+                      <span>Phone</span>
+                      <strong>{user?.phone || 'Unknown'}</strong>
+                    </div>
+                    <div>
+                      <span>Role</span>
+                      <strong>{user?.role || 'Unknown'}</strong>
+                    </div>
+                    <div>
+                      <span>Status</span>
+                      <strong>{user?.status || 'Unknown'}</strong>
+                    </div>
+                    {isAdmin && (
+                      <div>
+                        <span>Position</span>
+                        <strong>{user?.position || 'N/A'}</strong>
+                      </div>
+                    )}
+                    {isUser && (
+                      <div>
+                        <span>Current balance</span>
+                        <strong>{balanceText}</strong>
+                      </div>
+                    )}
+                    <button className="secondary-button" onClick={openProfile}>
+                      Edit Profile
+                    </button>
+                    <button className="logout-button" onClick={handleLogout}>
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <Link className="account-button" to="/login">
+                Account
+              </Link>
+            )}
+          </div>
         </div>
-      </header>
+      </div>
+    </header>
 
       {isUser && (
         <div className="wallet-nav-bar">
           <div className="wallet-nav-inner">
             <button
-              className={activeTab === 'wallet' ? 'active' : ''}
+              className={activeTab === 'wallet' ? 'active pill-tab' : 'pill-tab'}
               onClick={() => openDashboardTab('wallet')}
             >
+              {activeTab === 'wallet' ? (
+                <div style={{ background: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                </div>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+              )}
               Wallet Info
             </button>
             <button
-              className={activeTab === 'transfer' ? 'active' : ''}
+              className={activeTab === 'transfer' ? 'active pill-tab' : 'pill-tab'}
               onClick={() => openDashboardTab('transfer')}
             >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={activeTab === 'transfer' ? 'white' : '#2563eb'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
               Transfer Money
             </button>
             <button
-              className={activeTab === 'deposit' ? 'active' : ''}
+              className={activeTab === 'deposit' ? 'active pill-tab' : 'pill-tab'}
               onClick={() => openDashboardTab('deposit')}
             >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={activeTab === 'deposit' ? 'white' : '#a855f7'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
               Deposit
             </button>
             <button
-              className={activeTab === 'services' ? 'active' : ''}
+              className={activeTab === 'services' ? 'active pill-tab' : 'pill-tab'}
               onClick={() => openDashboardTab('services')}
             >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={activeTab === 'services' ? 'white' : '#ea580c'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
               Services
             </button>
             <button
-              className={activeTab === 'history' ? 'active' : ''}
+              className={activeTab === 'history' ? 'active pill-tab' : 'pill-tab'}
               onClick={() => openDashboardTab('history')}
             >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={activeTab === 'history' ? 'white' : '#10b981'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
               Transaction History
             </button>
           </div>
@@ -397,7 +511,7 @@ function App() {
             path="/dashboard"
             element={
               <UserRoute>
-                <DashboardPage activeTab={activeTab} />
+                <DashboardPage key={activeTab} activeTab={activeTab} />
               </UserRoute>
             }
           />

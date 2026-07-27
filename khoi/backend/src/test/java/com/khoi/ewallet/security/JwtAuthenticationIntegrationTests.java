@@ -127,6 +127,10 @@ class JwtAuthenticationIntegrationTests {
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(Map.of("id", 6, "role", "admin", "status", "active")));
         mockMvc.perform(get("/api/user/wallet/me").header("Authorization", bearer(jwtService.generateAccessToken(6)))).andExpect(status().isForbidden());
     }
+    @Test void recipientPreviewRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/user/wallet/recipient").param("phone", "0945141298"))
+                .andExpect(status().isUnauthorized());
+    }
     @Test void tokenIssuedBeforeBlockingIsRejectedAfterStatusChange() throws Exception {
         String token = jwtService.generateAccessToken(1);
         mockMvc.perform(get("/api/account/me").header("Authorization", bearer(token))).andExpect(status().isOk());

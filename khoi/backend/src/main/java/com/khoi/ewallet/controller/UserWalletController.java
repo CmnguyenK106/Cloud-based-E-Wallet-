@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
@@ -77,6 +78,68 @@ public class UserWalletController {
         Map<String, Object> response = new HashMap<>();
         response.put("user", buildUser(row));
         response.put("wallet", buildWallet(row));
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/recipient")
+    public ResponseEntity<Map<String, Object>> getRecipient(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(value = "phone", required = false) String phone
+    ) {
+        AuthResult authResult = authenticate(authorizationHeader);
+        if (authResult.errorResponse() != null) {
+            return authResult.errorResponse();
+        }
+
+        String recipientPhone = phone == null ? "" : phone.trim();
+        if (!PHONE_PATTERN.matcher(recipientPhone).matches()) {
+            return error("VALIDATION_ERROR", "Receiver phone invalid", HttpStatus.BAD_REQUEST);
+        }
+
+        List<Map<String, Object>> recipients = jdbcTemplate.queryForList(
+                """
+                SELECT
+                    u.id,
+                    u.phone,
+                    u.role,
+                    u.status,
+                    up.full_name,
+                    w.id AS wallet_id
+                FROM users u
+                LEFT JOIN user_profiles up ON u.id = up.user_id
+                LEFT JOIN wallets w ON u.id = w.user_id
+                WHERE u.phone = ?
+                LIMIT 1
+                """,
+                recipientPhone
+        );
+
+        if (recipients.isEmpty()) {
+            return recipientUnavailable();
+        }
+
+        Map<String, Object> recipient = recipients.get(0);
+        int recipientId = ((Number) recipient.get("id")).intValue();
+        if (recipientId == authResult.user().id()) {
+            return error(
+                    "SELF_TRANSFER",
+                    "You cannot transfer money to your own wallet.",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+
+        boolean eligible = "user".equalsIgnoreCase(String.valueOf(recipient.get("role")))
+                && "active".equalsIgnoreCase(String.valueOf(recipient.get("status")))
+                && recipient.get("wallet_id") != null
+                && recipient.get("full_name") != null
+                && !String.valueOf(recipient.get("full_name")).isBlank();
+        if (!eligible) {
+            return recipientUnavailable();
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("phone", recipient.get("phone"));
+        response.put("fullName", recipient.get("full_name"));
         return ResponseEntity.ok(response);
     }
 
@@ -728,6 +791,14 @@ public class UserWalletController {
                 "EMAIL_VERIFICATION_REQUIRED",
                 "Please verify your email before performing this action.",
                 HttpStatus.FORBIDDEN
+        );
+    }
+
+    private ResponseEntity<Map<String, Object>> recipientUnavailable() {
+        return error(
+                "RECIPIENT_UNAVAILABLE",
+                "No active wallet account was found for this phone number.",
+                HttpStatus.NOT_FOUND
         );
     }
 

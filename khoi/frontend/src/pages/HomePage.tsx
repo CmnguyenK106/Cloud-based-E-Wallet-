@@ -1,39 +1,40 @@
 import { Link } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
 
 function HomePage() {
+  const token = useAuthStore((state) => state.token)
+
   return (
     <main className="home-page">
-      <section className="hero-section">
-        <div className="hero-copy">
-          <span className="eyebrow">Cloud Wallet</span>
-          <h1>A simple cloud-based wallet for digital payments.</h1>
-          <p>
+      <section className="hero-section split-layout">
+        <div className="hero-copy layout-left" style={{ position: 'relative', zIndex: 10 }}>
+          {/* Decorative sphere */}
+          <div style={{ position: 'absolute', top: '-60px', left: '160px', width: '80px', height: '80px', borderRadius: '50%', background: 'radial-gradient(circle at 30% 30%, #fff, #e879f9 60%, #a855f7)', opacity: 0.8, filter: 'blur(1px)', zIndex: -1 }}></div>
+          {/* Decorative dots */}
+          <div style={{ position: 'absolute', top: '-100px', left: '-80px', width: '120px', height: '120px', backgroundImage: 'radial-gradient(#cbd5e1 2px, transparent 2px)', backgroundSize: '24px 24px', zIndex: -1 }}></div>
+
+          <span className="eyebrow text-blue" style={{ fontSize: '14px', letterSpacing: '0.1em' }}>CLOUD WALLET</span>
+          <h1 style={{ fontSize: '56px', lineHeight: 1.1, marginTop: '24px', marginBottom: '16px' }}>
+            A simple cloud wallet<br />for <span className="highlight-text">digital payments.</span>
+          </h1>
+          <p style={{ color: '#475569', fontSize: '18px', lineHeight: 1.6, maxWidth: '500px' }}>
             Register with your phone number, receive an initial balance,
-            transfer money, pay virtual services, and track transactions.
+            transfer money, pay services, and track transactions.
           </p>
-          <div className="hero-actions">
-            <Link className="primary-button" to="/register">
-              Get Started
-            </Link>
-            <Link className="secondary-button" to="/login">
-              Log in
-            </Link>
-          </div>
+          {!token && (
+            <div className="hero-actions" style={{display: 'flex', gap: '16px', marginTop: '32px'}}>
+              <Link className="primary-button gradient-button" to="/register" style={{padding: '16px 32px', fontSize: '16px', borderRadius: '12px'}}>
+                Get Started
+              </Link>
+              <Link className="secondary-button" to="/login" style={{padding: '16px 32px', fontSize: '16px', borderRadius: '12px', border: '1px solid #c084fc', color: '#0f172a', fontWeight: 'bold', background: '#fff', transition: 'border-color 0.2s'}}>
+                Log in
+              </Link>
+            </div>
+          )}
         </div>
 
-        <div className="wallet-showcase" aria-label="Wallet highlights">
-          <div className="wallet-card blue-wallet">
-            <span>Balance</span>
-            <strong>10.00 coins</strong>
-          </div>
-          <div className="wallet-card black-wallet">
-            <span>Transfer</span>
-            <strong>Phone to phone</strong>
-          </div>
-          <div className="wallet-card white-wallet">
-            <span>Payment</span>
-            <strong>Virtual services</strong>
-          </div>
+        <div className="layout-right illustration-container" style={{background: 'rgba(238, 242, 255, 0.6)', borderRadius: '24px', padding: '40px', border: '1px solid rgba(255, 255, 255, 0.5)'}}>
+          <img src="/images/services-illustration.png" alt="Cloud Wallet Features" style={{mixBlendMode: 'normal'}} />
         </div>
       </section>
 
@@ -44,15 +45,15 @@ function HomePage() {
         </article>
         <article>
           <h2>Mock Deposit</h2>
-          <p>Add demo coins to test wallet balance changes.</p>
+          <p>Add USD funds to your wallet balance.</p>
         </article>
         <article>
           <h2>Fast Transfer</h2>
-          <p>Send coins to another account by phone number.</p>
+          <p>Send USD to another account by phone number.</p>
         </article>
         <article>
           <h2>Virtual Payment</h2>
-          <p>Pay sample services with your wallet balance.</p>
+          <p>Pay available services with your wallet balance.</p>
         </article>
         <article>
           <h2>Transaction History</h2>

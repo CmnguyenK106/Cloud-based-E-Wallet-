@@ -1,4 +1,4 @@
-HELP.md
+# Keep HELP.md as maintained project documentation.
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

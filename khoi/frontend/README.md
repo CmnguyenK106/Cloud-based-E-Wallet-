@@ -1,15 +1,31 @@
 # Cloud E-Wallet Frontend
 
-React, TypeScript, Vite, Axios, Zustand, and Zod frontend for Cloud E-Wallet.
+The active frontend is `frontend/`: React 19, TypeScript, Vite, React Router, Axios, Zustand, and Zod.
 
-## Implemented behavior
+It is responsive and deployed to Amazon S3 through CloudFront at `https://cloud-ewallet.com`. Deployment remains manual.
 
-- ✅ Registration and login before email verification
-- ✅ Account/profile access and verification-email resend for unverified users
-- ✅ Persistent verification banner
-- ✅ Deposit/top-up, wallet transfer, service payment, and transaction history
-- ✅ Mutation controls disabled until verification
-- ✅ Global Axios handling for HTTP 403 `EMAIL_VERIFICATION_REQUIRED` without logout
+## Implemented UI
+
+- Registration, login/logout, verification/resend, forgot/reset password, and profile editing.
+- Wallet balance, simulated deposit, transfer, service payment, and transaction history.
+- Admin dashboard, users, transactions, and service management.
+- Deposit sender shown as `Bank Card` in customer and admin history.
+- Authenticated, debounced recipient lookup by phone. The full name appears in a read-only field and clears when the phone changes or is invalid, unavailable, blocked, wallet-less, an admin, or self-owned.
+- Service banners use the backend-provided service name.
+- Responsive customer/admin layouts and corrected mobile welcome-heading wrapping.
+- No visible demo labels in the deployed interface.
+
+The bank-card form is presentation-only. Card number, cardholder, expiry, CVV, and funding source stay in temporary React state and are never sent to the backend. The deposit API payload remains `amount` plus optional `description`.
+
+## API configuration
+
+`src/apis/axiosClient.ts` reads `VITE_API_BASE_URL`, removes a trailing slash, and appends `/api`.
+
+- When configured, that origin is used.
+- In development without a configured value, the origin is `http://localhost:8080`.
+- In production without a configured value, requests use same-origin `/api`.
+
+`frontend/.env.production` is a local Vite build-time file and is ignored in this checkout. Its value is public once compiled, so it must never contain a private token or credential. Keep it separate from backend and EC2 runtime files.
 
 ## Commands
 
@@ -20,14 +36,8 @@ npm run build
 npm run lint
 ```
 
-`VITE_API_BASE_URL` selects a separate API origin. Development defaults to `http://localhost:8080`; an absent production value uses same-origin `/api`.
+There is no automated frontend test script.
 
-## Production deployment
+## Production
 
-The current production frontend is hosted in Amazon S3 and served through CloudFront at `cloud-ewallet.com`.
-
-1. Run `npm run build`.
-2. Upload the contents of `dist/` to the production S3 bucket.
-3. Create a CloudFront invalidation for `/*`.
-
-Deployment is manual today. GitHub Actions automation is planned, not implemented. The latest recorded production build and ESLint checks passed.
+Build `frontend/dist/`, upload its contents to the production S3 bucket, and invalidate CloudFront path `/*`. Bucket/distribution identifiers are intentionally not stored in this repository. This audit did not deploy or invalidate anything.

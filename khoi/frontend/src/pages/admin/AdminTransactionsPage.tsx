@@ -20,12 +20,18 @@ function display(value: string | number | null | undefined) {
   return value === null || value === undefined || value === '' ? '—' : String(value)
 }
 function formatMoney(value: number | null) {
-  return value === null || Number.isNaN(Number(value)) ? '—' : `${money.format(Number(value))} coins`
+  return value === null || Number.isNaN(Number(value)) ? '—' : `${money.format(Number(value))} USD`
 }
 function formatDate(value: string | null) {
   if (!value) return '—'
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? '—' : dateTime.format(parsed)
+}
+function description(transaction: AdminTransaction) {
+  return transaction.type === 'deposit' &&
+    transaction.description?.trim().toLowerCase() === 'simulated deposit'
+    ? 'Deposit'
+    : transaction.description
 }
 function party(name: string | null, phone: string | null, fallback = '—') {
   return <><strong>{name || fallback}</strong>{phone && <span>{phone}</span>}</>
@@ -40,8 +46,9 @@ function TransactionDetails({ transaction, onClose }: { transaction: AdminTransa
   const fields = [
     ['Transaction code', transaction.transactionCode], ['Type', transaction.type],
     ['Status', transaction.status], ['Amount', formatMoney(transaction.amount)],
-    ['Description', transaction.description], ['Created time', formatDate(transaction.createdAt)],
-    ['Sender', transaction.senderName], ['Sender phone', transaction.senderPhone],
+    ['Description', description(transaction)], ['Created time', formatDate(transaction.createdAt)],
+    ['Sender', transaction.type === 'deposit' ? 'Bank Card' : transaction.senderName],
+    ['Sender phone', transaction.type === 'deposit' ? null : transaction.senderPhone],
     ['Sender wallet ID', transaction.senderWalletId], ['Receiver', transaction.receiverName],
     ['Receiver phone', transaction.receiverPhone], ['Receiver wallet ID', transaction.receiverWalletId],
     ['Service', transaction.serviceName], ['Service ID', transaction.serviceId],
@@ -117,8 +124,8 @@ export default function AdminTransactionsPage() {
       {loading && !transactions.length && <div className="transaction-state">Loading transactions...</div>}
       {!loading && !error && !transactions.length && <div className="transaction-state">No transactions match these filters.</div>}
       {transactions.length > 0 && <>
-        <div className={`admin-transaction-table-wrap ${loading ? 'is-loading' : ''}`}><table className="admin-transaction-table"><thead><tr><th>Code</th><th>Type</th><th>Status</th><th>Amount</th><th>Sender</th><th>Receiver / Service</th><th>Created by</th><th>Created</th><th>Action</th></tr></thead><tbody>{transactions.map((item) => <tr key={item.id}><td><strong>{item.transactionCode}</strong></td><td><span className="transaction-type-badge">{item.type}</span></td><td><span className={`transaction-status-badge ${item.status}`}>{item.status}</span></td><td><strong>{formatMoney(item.amount)}</strong></td><td>{party(item.senderName, item.senderPhone, item.type === 'deposit' ? 'System / External' : '—')}</td><td>{destination(item)}</td><td>{party(item.createdByName, item.createdByPhone)}</td><td>{formatDate(item.createdAt)}</td><td><button className="secondary-button detail-button" onClick={() => setSelected(item)}>View</button></td></tr>)}</tbody></table></div>
-        <div className="admin-transaction-card-list">{transactions.map((item) => <article className="transaction-card" key={item.id}><div className="transaction-card-top"><div><strong>{item.transactionCode}</strong><span>{formatDate(item.createdAt)}</span></div><strong>{formatMoney(item.amount)}</strong></div><div className="transaction-badge-row"><span className="transaction-type-badge">{item.type}</span><span className={`transaction-status-badge ${item.status}`}>{item.status}</span></div><div className="transaction-meta-grid"><div><span>Sender</span>{party(item.senderName, item.senderPhone, item.type === 'deposit' ? 'System / External' : '—')}</div><div><span>Receiver / Service</span>{destination(item)}</div></div><button className="secondary-button" onClick={() => setSelected(item)}>View details</button></article>)}</div>
+        <div className={`admin-transaction-table-wrap ${loading ? 'is-loading' : ''}`}><table className="admin-transaction-table"><thead><tr><th>Code</th><th>Type</th><th>Status</th><th>Amount</th><th>Sender</th><th>Receiver / Service</th><th>Created by</th><th>Created</th><th>Action</th></tr></thead><tbody>{transactions.map((item) => <tr key={item.id}><td><strong>{item.transactionCode}</strong></td><td><span className="transaction-type-badge">{item.type}</span></td><td><span className={`transaction-status-badge ${item.status}`}>{item.status}</span></td><td><strong>{formatMoney(item.amount)}</strong></td><td>{item.type === 'deposit' ? party('Bank Card', null) : party(item.senderName, item.senderPhone)}</td><td>{destination(item)}</td><td>{party(item.createdByName, item.createdByPhone)}</td><td>{formatDate(item.createdAt)}</td><td><button className="secondary-button detail-button" onClick={() => setSelected(item)}>View</button></td></tr>)}</tbody></table></div>
+        <div className="admin-transaction-card-list">{transactions.map((item) => <article className="transaction-card" key={item.id}><div className="transaction-card-top"><div><strong>{item.transactionCode}</strong><span>{formatDate(item.createdAt)}</span></div><strong>{formatMoney(item.amount)}</strong></div><div className="transaction-badge-row"><span className="transaction-type-badge">{item.type}</span><span className={`transaction-status-badge ${item.status}`}>{item.status}</span></div><div className="transaction-meta-grid"><div><span>Sender</span>{item.type === 'deposit' ? party('Bank Card', null) : party(item.senderName, item.senderPhone)}</div><div><span>Receiver / Service</span>{destination(item)}</div></div><button className="secondary-button" onClick={() => setSelected(item)}>View details</button></article>)}</div>
       </>}
       {pagination && <div className="admin-pagination"><span>Page {pagination.totalPages ? pagination.page + 1 : 0} of {pagination.totalPages} · {pagination.totalElements} records</span><label>Page size<select value={filters.size} onChange={(e) => { const size = Number(e.target.value) as 10 | 20 | 50; setDraft((current) => ({ ...current, size })); setFilters((current) => ({ ...current, size, page: 0 })) }}><option value="10">10</option><option value="20">20</option><option value="50">50</option></select></label><div><button className="secondary-button" disabled={!pagination.hasPrevious || loading} onClick={() => changePage(pagination.page - 1)}>Previous</button><button className="secondary-button" disabled={!pagination.hasNext || loading} onClick={() => changePage(pagination.page + 1)}>Next</button></div></div>}
     </section>

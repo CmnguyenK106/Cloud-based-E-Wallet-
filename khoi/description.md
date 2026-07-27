@@ -1,14 +1,20 @@
 # Cloud-based E-wallet - Project Requirements
 
-> **Current implementation note (2026-07-25):** This began as an early requirements and design document. Later wording such as “proposed,” “future,” production Docker Compose, ECR, or App Runner is historical/legacy guidance. [PROJECT_STATUS.md](PROJECT_STATUS.md) is authoritative for current status.
+> **Current implementation note (2026-07-27):** This began as an early requirements and design document. Later wording such as “proposed,” “future,” production Docker Compose, ECR, or App Runner is historical/legacy guidance. The current-state notes below and [PROJECT_STATUS.md](PROJECT_STATUS.md) are authoritative for deployed status.
 >
 > ✅ The application currently includes simulated deposit/top-up, wallet-to-wallet transfer, service payment, and transaction history. Deposit is not a future feature.
 >
-> ✅ Current application deployment: Users → Route 53 / `cloud-ewallet.com` → CloudFront → S3 React frontend → API requests to EC2 → Docker container `ewallet-backend` → Spring Boot → Amazon RDS MySQL. The provider-neutral SMTP migration for Resend is complete locally; production configuration, deployment, and email delivery verification are pending.
+> ✅ Current application deployment: Users → Cloudflare DNS → CloudFront → Amazon S3 React frontend → API requests to Amazon EC2 → Docker container `ewallet-backend` → Spring Boot backend → Amazon RDS MySQL and Resend SMTP through STARTTLS port 587. The responsive frontend, backend, database, DNS, and verified production email flows are deployed.
 >
-> ✅ Production uses Docker Hub image `chaukhoi/ewallet-backend:ses-v2`, manual `docker run`, environment file `/home/ec2-user/ewallet-backend.env`, and port mapping `8080:8080`. Docker Compose and CI/CD are not used for the current production deployment.
+> ✅ Production uses the confirmed Docker Hub image `chaukhoi/ewallet-backend:v3`, manual `docker run`, environment file `/home/ec2-user/ewallet-backend.env`, and port mapping `8080:8080`. Docker Compose is local-only; automated CI/CD is not used for the current production deployment.
 >
-> The `ses-v2` text is a legacy image tag and does not determine the provider used at runtime. The recommended next tag is `chaukhoi/ewallet-backend:resend-v1`; it has not been built, pushed, or deployed.
+> ✅ Completed application scope includes JWT authentication and logout; registration email verification and resend; forgot/reset password; profile management; wallet balance, deposit, transfer, authenticated receiver-name lookup, service payment, and transaction history; plus the admin dashboard, user management, transaction management, and service management.
+>
+> ✅ The active responsive frontend is `frontend/`; obsolete `frontend_new/` and `frontend_new1/` migration directories were removed. Receiver names appear in a read-only input-style field that disappears immediately when the phone changes. Deposit sender is shown as `Bank Card`, service banners use the actual service name, visible demo labels were removed, mobile/tablet/desktop behavior was improved, and mobile welcome-heading line spacing was corrected.
+>
+> ✅ The final repository validation passed 68 backend tests with no failures, the backend package build, the frontend production build, and frontend lint. Local, frontend build-time, and production runtime environment files remain separate for safety; documentation contains variable names and placeholders only.
+>
+> ⚠️ Current limitations: one EC2 backend instance; no ALB, target group, Auto Scaling, ECS/Fargate, second backend instance, or automated CI/CD; manual Docker deployment; and manual frontend build, S3 upload, and CloudFront invalidation.
 
 ## 1. Giới thiệu dự án
 
@@ -574,9 +580,9 @@ service_id         = dịch vụ được thanh toán
 
 ---
 
-# 8. Chức năng admin dự kiến mở rộng
+# 8. Chức năng admin đã triển khai
 
-Admin chưa bắt buộc phải làm ngay trong giai đoạn đầu, nhưng hệ thống được thiết kế để sau này mở rộng dễ dàng.
+Các chức năng admin mô tả trong phần này đã được triển khai trong giao diện responsive và backend hiện tại. Những endpoint ghi là “dự kiến” bên dưới được giữ như lịch sử thiết kế ban đầu; danh sách endpoint thực tế nằm trong source controller và tài liệu trạng thái hiện hành.
 
 ## 8.1 Quản lý người dùng
 
@@ -1388,7 +1394,46 @@ Người dùng mở trang lịch sử
 
 ---
 
-# 15. Định hướng deploy sau này
+# 15. Triển khai hiện tại và định hướng sau này
+
+## 15.0 Trạng thái production hiện tại
+
+Kiến trúc đang hoạt động:
+
+```text
+Users
+  ↓
+Cloudflare DNS
+  ↓
+CloudFront
+  ↓
+Amazon S3 React frontend
+  ↓ API requests
+Amazon EC2
+  ↓
+Docker container: ewallet-backend
+  ↓
+Spring Boot backend
+  ├── Amazon RDS MySQL
+  └── Resend SMTP through STARTTLS port 587
+```
+
+Backend dùng image đã xác nhận `chaukhoi/ewallet-backend:v3`, container
+`ewallet-backend`, file môi trường ngoài repository
+`/home/ec2-user/ewallet-backend.env`, ánh xạ cổng `8080:8080`, và quy trình
+`docker run` thủ công. Frontend được build thủ công từ thư mục active
+`frontend/`, upload lên S3 và phân phối qua CloudFront; DNS do Cloudflare quản
+lý. Resend SMTP đã hoạt động cho verification, resend verification,
+forgot-password và reset-password.
+
+Các file môi trường local, Vite build-time và EC2 runtime được giữ riêng vì có
+cơ chế nạp khác nhau. File chứa giá trị thật không được commit; tài liệu và
+template chỉ chứa tên biến hoặc placeholder.
+
+Hiện tại chỉ có một EC2 backend. ALB, target group, Auto Scaling, EC2 thứ hai,
+ECS/Fargate và CI/CD tự động chưa được triển khai. Các phần 15.1–15.5 bên dưới
+được giữ lại để mô tả quá trình và định hướng thiết kế ban đầu, không phải bằng
+chứng rằng các hạng mục tương lai đã hoàn thành.
 
 ## 15.1 Giai đoạn local
 
@@ -1445,21 +1490,35 @@ Không hard-code cấu hình trong code.
 Frontend dùng biến môi trường:
 
 ```text
-VITE_API_URL=http://localhost:8080/api
+VITE_API_BASE_URL=http://localhost:8080
 ```
 
 Backend dùng biến môi trường:
 
 ```text
-DB_HOST=localhost
-DB_PORT=3307
-DB_NAME=ewallet_db
+SPRING_PROFILES_ACTIVE=local hoặc prod
+DB_URL=jdbc:mysql://host:port/ewallet_db
 DB_USERNAME=ewallet_user
-DB_PASSWORD=ewallet_pass
-JWT_SECRET=your_secret_key
+DB_PASSWORD=********
+JWT_SECRET=********
+JWT_EXPIRATION=3600
+FRONTEND_BASE_URL=https://cloud-ewallet.com
+CORS_ALLOWED_ORIGINS=https://cloud-ewallet.com
+MAIL_DEVELOPMENT_LOG_ENABLED=false
+EMAIL_VERIFICATION_MINUTES=1440
+PASSWORD_RESET_MINUTES=30
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587
+SMTP_USERNAME=resend
+SMTP_PASSWORD=********
+MAIL_FROM_ADDRESS=no-reply@cloud-ewallet.com
 ```
 
 Khi deploy lên AWS, chỉ cần đổi biến môi trường, không cần sửa code nghiệp vụ.
+Production tiếp tục đọc các tên biến này từ
+`/home/ec2-user/ewallet-backend.env`; không di chuyển hoặc đổi tên runtime file
+trong quá trình dọn dẹp repository. `VITE_API_BASE_URL` là cấu hình public được
+đóng gói khi Vite build và không được chứa secret.
 
 ---
 
@@ -1508,6 +1567,11 @@ Dự án không bao gồm trong giai đoạn đầu:
 
 Cloud-based E-wallet là một hệ thống ví điện tử mô phỏng phù hợp để thực hành xây dựng web application theo mô hình frontend, backend và database. Dự án sử dụng React TypeScript cho frontend, Spring Boot cho backend và MySQL cho database.
 
-Thiết kế hiện tại tập trung vào chức năng người dùng như đăng ký, đăng nhập, nạp tiền mô phỏng, chuyển tiền, thanh toán dịch vụ ảo và xem lịch sử giao dịch. Đồng thời, hệ thống đã chuẩn bị sẵn cấu trúc role, admin profile, service management và transaction history để sau này dễ mở rộng thêm chức năng quản trị.
+Thiết kế hiện tại đã hoàn thành chức năng người dùng gồm đăng ký, JWT login/logout, xác minh và gửi lại email xác minh, quên/đặt lại mật khẩu, profile, số dư, nạp tiền mô phỏng, chuyển tiền với tra cứu tên người nhận, thanh toán dịch vụ và lịch sử giao dịch. Dashboard admin, quản lý user, giao dịch và dịch vụ cũng đã được triển khai.
 
-Hướng triển khai ban đầu là chạy local với MySQL Docker. Sau khi hoàn thiện chức năng, hệ thống có thể được Docker hóa và deploy lên AWS bằng EC2, ECS Fargate hoặc App Runner, kết hợp với Amazon RDS MySQL.
+Hệ thống hiện đã deploy frontend lên Amazon S3/CloudFront, dùng Cloudflare DNS,
+chạy Spring Boot trong container `ewallet-backend` từ image
+`chaukhoi/ewallet-backend:v3` trên một EC2, kết nối Amazon RDS MySQL và gửi mail
+qua Resend STARTTLS port 587. ALB, Auto Scaling, backend instance thứ hai,
+ECS/Fargate và CI/CD vẫn là kế hoạch tương lai; deployment backend và frontend
+hiện còn thủ công.
