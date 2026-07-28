@@ -4,6 +4,8 @@ The active frontend is `frontend/`: React 19, TypeScript, Vite, React Router, Ax
 
 It is responsive and deployed to Amazon S3 through CloudFront at `https://cloud-ewallet.com`. Deployment remains manual.
 
+Cloudflare provides DNS. CloudFront serves the S3 frontend for its default behavior and routes `/api/*` to the internet-facing Application Load Balancer. The previous direct CloudFront-to-EC2 API origin has been removed.
+
 ## Implemented UI
 
 - Registration, login/logout, verification/resend, forgot/reset password, and profile editing.
@@ -41,3 +43,5 @@ There is no automated frontend test script.
 ## Production
 
 Build `frontend/dist/`, upload its contents to the production S3 bucket, and invalidate CloudFront path `/*`. Bucket/distribution identifiers are intentionally not stored in this repository. This audit did not deploy or invalidate anything.
+
+Browser traffic to CloudFront uses HTTPS. The current origin connection from CloudFront to the ALB uses HTTP; HTTPS on that hop is a possible future hardening step.

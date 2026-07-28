@@ -1,12 +1,12 @@
 # Cloud-based E-wallet - Project Requirements
 
-> **Current implementation note (2026-07-27):** This began as an early requirements and design document. Later wording such as “proposed,” “future,” production Docker Compose, ECR, or App Runner is historical/legacy guidance. The current-state notes below and [PROJECT_STATUS.md](PROJECT_STATUS.md) are authoritative for deployed status.
+> **Current implementation note (2026-07-28):** This began as an early requirements and design document. Later wording such as “proposed,” “future,” production Docker Compose, ECR, or App Runner is historical/legacy guidance. The current-state notes below and [PROJECT_STATUS.md](PROJECT_STATUS.md) are authoritative for deployed status.
 >
 > ✅ The application currently includes simulated deposit/top-up, wallet-to-wallet transfer, service payment, and transaction history. Deposit is not a future feature.
 >
-> ✅ Current application deployment: Users → Cloudflare DNS → CloudFront → Amazon S3 React frontend → API requests to Amazon EC2 → Docker container `ewallet-backend` → Spring Boot backend → Amazon RDS MySQL and Resend SMTP through STARTTLS port 587. The responsive frontend, backend, database, DNS, and verified production email flows are deployed.
+> ✅ Current application deployment: Users → Cloudflare DNS → CloudFront; the default behavior serves the React frontend from Amazon S3, while `/api/*` routes to an internet-facing ALB → one EC2 target → Dockerized Spring Boot → Amazon RDS MySQL and Resend SMTP. The old direct CloudFront-to-EC2 origin has been removed.
 >
-> ✅ Production uses the confirmed Docker Hub image `chaukhoi/ewallet-backend:v3`, manual `docker run`, environment file `/home/ec2-user/ewallet-backend.env`, and port mapping `8080:8080`. Docker Compose is local-only; automated CI/CD is not used for the current production deployment.
+> ✅ Production uses manual `docker run`, environment file `/home/ec2-user/ewallet-backend.env`, and port mapping `8080:8080`. The exact deployed image tag is not authoritative in repository source. Docker Compose is local-only; automated CI/CD is not used.
 >
 > ✅ Completed application scope includes JWT authentication and logout; registration email verification and resend; forgot/reset password; profile management; wallet balance, deposit, transfer, authenticated receiver-name lookup, service payment, and transaction history; plus the admin dashboard, user management, transaction management, and service management.
 >
@@ -14,7 +14,7 @@
 >
 > ✅ The final repository validation passed 68 backend tests with no failures, the backend package build, the frontend production build, and frontend lint. Local, frontend build-time, and production runtime environment files remain separate for safety; documentation contains variable names and placeholders only.
 >
-> ⚠️ Current limitations: one EC2 backend instance; no ALB, target group, Auto Scaling, ECS/Fargate, second backend instance, or automated CI/CD; manual Docker deployment; and manual frontend build, S3 upload, and CloudFront invalidation.
+> ⚠️ Current limitations: the ALB has only one healthy EC2 backend target, so full backend high availability is not achieved. There is no Auto Scaling Group, second backend instance, ECS/Fargate, or automated CI/CD; backend and frontend deployment remain manual.
 
 ## 1. Giới thiệu dự án
 
@@ -916,6 +916,7 @@ Database gồm các bảng chính:
 
 ```text
 users
+account_tokens
 user_profiles
 admin_profiles
 wallets
@@ -927,6 +928,7 @@ Quan hệ tổng quát:
 
 ```text
 users
+  ├── account_tokens
   ├── user_profiles
   │       └── wallets
   └── admin_profiles
@@ -960,6 +962,16 @@ Các trường chính:
 role = user  → tài khoản người dùng ví điện tử
 role = admin → tài khoản quản trị hệ thống
 ```
+
+---
+
+### Bảng account_tokens
+
+`account_tokens` lưu **hash** của token cho hai loại
+`EMAIL_VERIFICATION` và `PASSWORD_RESET`; không lưu token dạng rõ. Trường
+`expires_at` giới hạn thời gian hợp lệ và `used_at` đánh dấu token đã sử dụng
+một lần. Cleanup token hết hạn bằng Spring scheduling hoặc AWS Lambda chưa
+được triển khai.
 
 ---
 
@@ -1402,26 +1414,33 @@ Kiến trúc đang hoạt động:
 
 ```text
 Users
-  ↓
+  |
+  v
 Cloudflare DNS
-  ↓
-CloudFront
-  ↓
-Amazon S3 React frontend
-  ↓ API requests
-Amazon EC2
-  ↓
-Docker container: ewallet-backend
-  ↓
-Spring Boot backend
-  ├── Amazon RDS MySQL
-  └── Resend SMTP through STARTTLS port 587
+  |
+  v
+Amazon CloudFront
+  |-- Default behavior (*) --> Amazon S3 React frontend
+  |
+  `-- /api/* behavior --> Application Load Balancer (HTTP :80)
+                             |
+                             v
+                        One EC2 target (:8080)
+                        Dockerized Spring Boot
+                             |
+                             +--> Amazon RDS MySQL
+                             `--> Resend SMTP (STARTTLS)
 ```
 
-Backend dùng image đã xác nhận `chaukhoi/ewallet-backend:v3`, container
-`ewallet-backend`, file môi trường ngoài repository
-`/home/ec2-user/ewallet-backend.env`, ánh xạ cổng `8080:8080`, và quy trình
-`docker run` thủ công. Frontend được build thủ công từ thư mục active
+CloudFront nhận HTTPS từ trình duyệt, phục vụ frontend S3 và chuyển `/api/*`
+đến ALB qua HTTP. ALB chuyển tiếp đến target group cổng `8080`; health check
+`/actuator/health` đã xác nhận target EC2 khỏe mạnh. Origin cũ đi trực tiếp từ
+CloudFront đến EC2 đã được gỡ bỏ.
+
+Backend chạy trong container `ewallet-backend`, dùng file môi trường ngoài
+repository `/home/ec2-user/ewallet-backend.env`, ánh xạ cổng `8080:8080`, và
+quy trình `docker run` thủ công. Tag image production chính xác không thể xác
+minh chỉ từ source repository. Frontend được build thủ công từ thư mục active
 `frontend/`, upload lên S3 và phân phối qua CloudFront; DNS do Cloudflare quản
 lý. Resend SMTP đã hoạt động cho verification, resend verification,
 forgot-password và reset-password.
@@ -1430,10 +1449,19 @@ Các file môi trường local, Vite build-time và EC2 runtime được giữ r
 cơ chế nạp khác nhau. File chứa giá trị thật không được commit; tài liệu và
 template chỉ chứa tên biến hoặc placeholder.
 
-Hiện tại chỉ có một EC2 backend. ALB, target group, Auto Scaling, EC2 thứ hai,
-ECS/Fargate và CI/CD tự động chưa được triển khai. Các phần 15.1–15.5 bên dưới
-được giữ lại để mô tả quá trình và định hướng thiết kế ban đầu, không phải bằng
-chứng rằng các hạng mục tương lai đã hoàn thành.
+EC2 hiện nằm trong public subnet và có public IPv4 để quản trị thủ công và truy
+cập Internet outbound, nhưng traffic ứng dụng chỉ được phép từ security group
+của ALB vào cổng `8080`. SSH cổng `22` chỉ cho phép IP quản trị `/32`; cổng
+`80` và `443` trên EC2 đóng; không có Nginx. Truy cập trực tiếp public IP EC2
+trên `8080` bị chặn. RDS nằm trong private subnet và chỉ nhận MySQL từ security
+group EC2.
+
+ALB hiện chỉ có một EC2 target. Routing và health check đã triển khai, nhưng
+chưa có fault tolerance đầy đủ hoặc application Multi-AZ. Hướng cải thiện là
+dùng Auto Scaling Group với nhiều target ở nhiều Availability Zone và chuyển
+EC2 vào private subnet, kết hợp Session Manager, NAT Gateway hoặc VPC endpoints
+phù hợp và quy trình deploy image mới. Các phần 15.1–15.5 bên dưới mô tả lịch
+sử và định hướng, không phải bằng chứng các hạng mục tương lai đã hoàn thành.
 
 ## 15.1 Giai đoạn local
 
@@ -1570,8 +1598,8 @@ Cloud-based E-wallet là một hệ thống ví điện tử mô phỏng phù h�
 Thiết kế hiện tại đã hoàn thành chức năng người dùng gồm đăng ký, JWT login/logout, xác minh và gửi lại email xác minh, quên/đặt lại mật khẩu, profile, số dư, nạp tiền mô phỏng, chuyển tiền với tra cứu tên người nhận, thanh toán dịch vụ và lịch sử giao dịch. Dashboard admin, quản lý user, giao dịch và dịch vụ cũng đã được triển khai.
 
 Hệ thống hiện đã deploy frontend lên Amazon S3/CloudFront, dùng Cloudflare DNS,
-chạy Spring Boot trong container `ewallet-backend` từ image
-`chaukhoi/ewallet-backend:v3` trên một EC2, kết nối Amazon RDS MySQL và gửi mail
-qua Resend STARTTLS port 587. ALB, Auto Scaling, backend instance thứ hai,
+route `/api/*` qua ALB đến Spring Boot trong container `ewallet-backend` trên
+một EC2, kết nối Amazon RDS MySQL và gửi mail qua Resend STARTTLS port 587.
+ALB và health check đã hoàn thành, nhưng Auto Scaling, backend instance thứ hai,
 ECS/Fargate và CI/CD vẫn là kế hoạch tương lai; deployment backend và frontend
 hiện còn thủ công.

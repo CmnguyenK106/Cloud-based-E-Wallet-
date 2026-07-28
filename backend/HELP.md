@@ -24,17 +24,10 @@ The Maven wrapper can be used when its bootstrap is available. Current audit res
 
 ## Production runtime
 
-Repository evidence identifies the current deployed image as:
-
-```text
-chaukhoi/ewallet-backend:ses-v2
-```
-
-The image tag is legacy naming and is not evidence of the active mail provider. The running production configuration uses provider-neutral SMTP variables with Resend. No newer deployed tag is evidenced, so do not guess or overwrite it.
-
 Current runtime facts:
 
 - one EC2 instance;
+- one healthy target behind an internet-facing Application Load Balancer;
 - container `ewallet-backend`;
 - manual `docker run`;
 - environment file `/home/ec2-user/ewallet-backend.env`;
@@ -42,7 +35,9 @@ Current runtime facts:
 - Amazon RDS MySQL;
 - Resend SMTP.
 
-Docker Compose is for local MySQL only. Production does not currently use an ALB, ECS, or CI/CD.
+CloudFront routes `/api/*` to the ALB over HTTP port 80. The ALB forwards to the backend on port 8080 and checks `/actuator/health`. EC2 accepts port 8080 only from the ALB security group; direct access through the EC2 public address is blocked. Docker Compose is for local MySQL only. Production does not use ECS or CI/CD.
+
+The exact current production image tag is not verifiable from repository source, so use `<BACKEND_IMAGE>` in documentation and confirm the selected tag during deployment.
 
 ## Production configuration
 
@@ -58,4 +53,4 @@ Keep `/home/ec2-user/ewallet-backend.env` outside Git. Do not move or rename it 
 - `/actuator/health/liveness`
 - `/actuator/health/readiness`
 
-Only health and info are exposed, and health details are hidden. `/actuator/health` is the recommended starting health-check path for the planned ALB phase.
+Only health and info are exposed, and health details are hidden. The ALB target group uses `/actuator/health`.
