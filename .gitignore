@@ -14,3 +14,7 @@ frontend/dist/
 frontend/node_modules/
 *.log
 database/rds/*_local.sql
+
+
+# báo cáo cá nhân
+report/
