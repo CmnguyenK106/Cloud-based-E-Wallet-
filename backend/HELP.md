@@ -33,7 +33,7 @@ Current runtime facts:
 - environment file `/home/ec2-user/ewallet-backend.env`;
 - port mapping `8080:8080`;
 - Amazon RDS MySQL;
-- Resend SMTP.
+- Amazon SES SMTP, with Resend SMTP retained as an environment-selected fallback.
 
 CloudFront routes `/api/*` to the ALB over HTTP port 80. The ALB forwards to the backend on port 8080 and checks `/actuator/health`. EC2 accepts port 8080 only from the ALB security group; direct access through the EC2 public address is blocked. Docker Compose is for local MySQL only. Production does not use ECS or CI/CD.
 
@@ -41,9 +41,15 @@ The exact current production image tag is not verifiable from repository source,
 
 ## Production configuration
 
-Use the `prod` Spring profile and the names in `.env.production.example`. Database values, `JWT_SECRET`, frontend/CORS origins, `SMTP_PASSWORD`, and `MAIL_FROM_ADDRESS` are required. Defaults exist for JWT lifetime, token lifetimes, SMTP host (`smtp.resend.com`), port (587), and username (`resend`).
+Use the `prod` Spring profile and the names in `.env.production.example`.
+`EMAIL_PROVIDER` accepts `ses` or `resend`; production defaults to `ses`. Only
+the selected provider's host, port, username, password, and sender address are
+required.
 
-The production profile requires SMTP authentication and STARTTLS. Startup validation rejects missing `SMTP_PASSWORD` or `MAIL_FROM_ADDRESS`. EC2 connects outbound to port 587; no inbound SMTP port is required.
+The production profile requires SMTP authentication and STARTTLS. Startup
+validation rejects unsupported providers and missing selected-provider values
+without exposing secrets. EC2 connects outbound to port 587; no inbound SMTP port
+is required. Migration and rollback commands are in `../DEPLOYMENT.md`.
 
 Keep `/home/ec2-user/ewallet-backend.env` outside Git. Do not move or rename it during repository cleanup.
 

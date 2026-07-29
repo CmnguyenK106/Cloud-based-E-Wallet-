@@ -1,6 +1,5 @@
 package com.khoi.ewallet.auth;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -13,9 +12,9 @@ public class SmtpEmailService implements EmailService {
     private final String fromAddress;
 
     public SmtpEmailService(JavaMailSender mailSender,
-            @Value("${mail.from-address}") String fromAddress) {
+            ProductionMailConfiguration configuration) {
         this.mailSender = mailSender;
-        this.fromAddress = fromAddress;
+        this.fromAddress = configuration.selected().fromAddress();
     }
 
     @Override

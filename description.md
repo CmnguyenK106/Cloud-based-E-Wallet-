@@ -4,7 +4,7 @@
 >
 > ✅ The application currently includes simulated deposit/top-up, wallet-to-wallet transfer, service payment, and transaction history. Deposit is not a future feature.
 >
-> ✅ Current application deployment: Users → Cloudflare DNS → CloudFront; the default behavior serves the React frontend from Amazon S3, while `/api/*` routes to an internet-facing ALB → one EC2 target → Dockerized Spring Boot → Amazon RDS MySQL and Resend SMTP. The old direct CloudFront-to-EC2 origin has been removed.
+> ✅ Current application deployment: Users → Cloudflare DNS → CloudFront; the default behavior serves the React frontend from Amazon S3, while `/api/*` routes to an internet-facing ALB → one EC2 target → Dockerized Spring Boot → Amazon RDS MySQL and Amazon SES SMTP. Resend SMTP remains an environment-selected rollback provider. The old direct CloudFront-to-EC2 origin has been removed.
 >
 > ✅ Production uses manual `docker run`, environment file `/home/ec2-user/ewallet-backend.env`, and port mapping `8080:8080`. The exact deployed image tag is not authoritative in repository source. Docker Compose is local-only; automated CI/CD is not used.
 >
@@ -12,7 +12,7 @@
 >
 > ✅ The active responsive frontend is `frontend/`; obsolete `frontend_new/` and `frontend_new1/` migration directories were removed. Receiver names appear in a read-only input-style field that disappears immediately when the phone changes. Deposit sender is shown as `Bank Card`, service banners use the actual service name, visible demo labels were removed, mobile/tablet/desktop behavior was improved, and mobile welcome-heading line spacing was corrected.
 >
-> ✅ The final repository validation passed 68 backend tests with no failures, the backend package build, the frontend production build, and frontend lint. Local, frontend build-time, and production runtime environment files remain separate for safety; documentation contains variable names and placeholders only.
+> ✅ The provider-migration repository validation passed 72 backend tests with no failures. Local, frontend build-time, and production runtime environment files remain separate for safety; documentation contains variable names and placeholders only.
 >
 > ⚠️ Current limitations: the ALB has only one healthy EC2 backend target, so full backend high availability is not achieved. There is no Auto Scaling Group, second backend instance, ECS/Fargate, or automated CI/CD; backend and frontend deployment remain manual.
 
@@ -1429,7 +1429,7 @@ Amazon CloudFront
                         Dockerized Spring Boot
                              |
                              +--> Amazon RDS MySQL
-                             `--> Resend SMTP (STARTTLS)
+                             `--> Amazon SES SMTP (STARTTLS)
 ```
 
 CloudFront nhận HTTPS từ trình duyệt, phục vụ frontend S3 và chuyển `/api/*`
@@ -1442,7 +1442,7 @@ repository `/home/ec2-user/ewallet-backend.env`, ánh xạ cổng `8080:8080`, v
 quy trình `docker run` thủ công. Tag image production chính xác không thể xác
 minh chỉ từ source repository. Frontend được build thủ công từ thư mục active
 `frontend/`, upload lên S3 và phân phối qua CloudFront; DNS do Cloudflare quản
-lý. Resend SMTP đã hoạt động cho verification, resend verification,
+lý. Amazon SES SMTP là provider production cho verification, resend verification,
 forgot-password và reset-password.
 
 Các file môi trường local, Vite build-time và EC2 runtime được giữ riêng vì có
@@ -1535,11 +1535,12 @@ CORS_ALLOWED_ORIGINS=https://cloud-ewallet.com
 MAIL_DEVELOPMENT_LOG_ENABLED=false
 EMAIL_VERIFICATION_MINUTES=1440
 PASSWORD_RESET_MINUTES=30
-SMTP_HOST=smtp.resend.com
-SMTP_PORT=587
-SMTP_USERNAME=resend
-SMTP_PASSWORD=********
-MAIL_FROM_ADDRESS=no-reply@cloud-ewallet.com
+EMAIL_PROVIDER=ses
+SES_SMTP_HOST=email-smtp.ap-southeast-1.amazonaws.com
+SES_SMTP_PORT=587
+SES_SMTP_USERNAME=REPLACE_WITH_SES_SMTP_USERNAME
+SES_SMTP_PASSWORD=REPLACE_WITH_SES_SMTP_PASSWORD
+SES_MAIL_FROM_ADDRESS=noreply@cloud-ewallet.com
 ```
 
 Khi deploy lên AWS, chỉ cần đổi biến môi trường, không cần sửa code nghiệp vụ.
@@ -1599,7 +1600,7 @@ Thiết kế hiện tại đã hoàn thành chức năng người dùng gồm đ
 
 Hệ thống hiện đã deploy frontend lên Amazon S3/CloudFront, dùng Cloudflare DNS,
 route `/api/*` qua ALB đến Spring Boot trong container `ewallet-backend` trên
-một EC2, kết nối Amazon RDS MySQL và gửi mail qua Resend STARTTLS port 587.
+một EC2, kết nối Amazon RDS MySQL và gửi mail qua Amazon SES SMTP STARTTLS port 587.
 ALB và health check đã hoàn thành, nhưng Auto Scaling, backend instance thứ hai,
 ECS/Fargate và CI/CD vẫn là kế hoạch tương lai; deployment backend và frontend
 hiện còn thủ công.

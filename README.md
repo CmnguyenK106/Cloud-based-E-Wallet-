@@ -15,7 +15,7 @@ See [PROJECT_STATUS.md](PROJECT_STATUS.md) for deployment verification, current 
 | Authentication | BCrypt passwords and signed, expiring JWT access tokens |
 | Data | MySQL 8 locally; Amazon RDS MySQL in production |
 | Runtime | Docker Compose for local MySQL; Dockerized Spring Boot on EC2 |
-| Email | Development link logging locally; Resend SMTP in production |
+| Email | Development link logging locally; Amazon SES SMTP in production; Resend fallback |
 
 ## Implemented functionality
 
@@ -49,7 +49,7 @@ Amazon CloudFront
                              |
                              +--> Amazon RDS MySQL
                              |
-                             `--> Resend SMTP service
+                             `--> Amazon SES SMTP
 ```
 
 - Browser-to-CloudFront traffic uses HTTPS.
@@ -59,7 +59,9 @@ Amazon CloudFront
 - The previous direct CloudFront-to-EC2 API origin has been removed.
 - The backend runs in Docker on one EC2 instance. The ALB is ready for additional targets, but one target does not provide full backend high availability.
 - Amazon RDS MySQL remains in private subnets.
-- Spring Mail uses provider-neutral SMTP settings. Production uses Resend with authenticated STARTTLS and a domain verified through Cloudflare DNS.
+- Spring Mail uses provider-neutral SMTP settings. `EMAIL_PROVIDER` selects Amazon
+  SES (the production default) or Resend (fallback) without changing business
+  logic. Both use authenticated STARTTLS on port 587.
 
 ## EC2 and network security
 
@@ -101,7 +103,14 @@ khoi/
 | `/home/ec2-user/ewallet-backend.env` | EC2 copy loaded with Docker `--env-file` | Outside Git |
 | `frontend/.env.production` | Vite production build-time configuration | Ignored; public after compilation |
 
-Keep local, frontend build-time, and production runtime configuration separate. Never place database, JWT, SMTP, or AWS secrets in documentation or Vite configuration. Documentation and templates must use placeholders such as `<DB_PASSWORD>`, `<JWT_SECRET>`, `<SMTP_PASSWORD>`, and `<AWS_ACCOUNT_ID>`.
+Keep local, frontend build-time, and production runtime configuration separate.
+Never place database, JWT, SMTP, or AWS secrets in documentation or Vite
+configuration. See [DEPLOYMENT.md](DEPLOYMENT.md) for the SES migration and Resend
+rollback procedure.
+
+Local `MAIL_DEVELOPMENT_LOG_ENABLED=true` logs account links and avoids real SMTP.
+SMTP mode requires valid credentials for the selected provider. Production must
+use `MAIL_DEVELOPMENT_LOG_ENABLED=false`.
 
 Example production backend launch:
 

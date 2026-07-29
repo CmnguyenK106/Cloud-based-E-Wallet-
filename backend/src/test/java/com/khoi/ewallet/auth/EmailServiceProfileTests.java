@@ -2,10 +2,7 @@ package com.khoi.ewallet.auth;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.core.env.MapPropertySource;
 import org.springframework.mail.javamail.JavaMailSender;
-
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,9 +31,11 @@ class EmailServiceProfileTests {
     private AnnotationConfigApplicationContext emailContext(String profile) {
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
         context.getEnvironment().setActiveProfiles(profile);
-        context.getEnvironment().getPropertySources().addFirst(
-                new MapPropertySource("testMail", Map.of("mail.from-address", "sender@example.test")));
         context.registerBean(JavaMailSender.class, () -> mock(JavaMailSender.class));
+        if ("prod".equals(profile)) {
+            context.registerBean(ProductionMailConfiguration.class,
+                    () -> ProductionMailConfigurationTests.complete("ses"));
+        }
         context.register(DevelopmentEmailService.class, SmtpEmailService.class);
         context.refresh();
         return context;

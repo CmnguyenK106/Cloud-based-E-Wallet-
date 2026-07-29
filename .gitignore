@@ -17,4 +17,7 @@ database/rds/*_local.sql
 
 
 # báo cáo cá nhân
-report/
+report/fcj-workshop-template-main/content/1-Worklog
+report/fcj-workshop-template-main/content/3-BlogsPosted
+report/fcj-workshop-template-main/content/4-EventParticipated
+report/fcj-workshop-template-main/content/6-Self-evaluation

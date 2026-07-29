@@ -1,6 +1,6 @@
 # Cloud E-Wallet Project Status
 
-Last documentation audit: 2026-07-28
+Last documentation audit: 2026-07-29
 
 Cloud E-Wallet is a deployed simulated-funds learning application, not a real-money wallet.
 
@@ -12,7 +12,7 @@ Cloud E-Wallet is a deployed simulated-funds learning application, not a real-mo
 | Administration | Implemented | Dashboard, user block/unblock, transaction review, service lifecycle |
 | Frontend | Deployed | Responsive React/TypeScript/Vite static build on S3 through CloudFront |
 | Backend | Deployed | Dockerized Spring Boot on one EC2 target behind an ALB |
-| Data and email | Deployed | Amazon RDS MySQL and Resend SMTP |
+| Data and email | Deployed | Amazon RDS MySQL and Amazon SES SMTP; Resend fallback |
 | Backend high availability | Partial | ALB routing exists, but only one EC2 target is registered |
 | Automation | Future | Deployment remains manual; no CI/CD or Auto Scaling Group |
 
@@ -39,7 +39,7 @@ Amazon CloudFront
                         Dockerized Spring Boot
                              |
                              +--> Private-subnet Amazon RDS MySQL
-                             `--> Resend SMTP (STARTTLS)
+                             `--> Amazon SES SMTP (STARTTLS)
 ```
 
 CloudFront is the browser-facing HTTPS endpoint. It routes `/api/*` to the internet-facing ALB over HTTP. The old direct CloudFront-to-EC2 origin is removed. The ALB target is healthy and forwards to the containerized backend on port `8080`.
@@ -70,9 +70,12 @@ Source review confirms:
 
 ## Email and account tokens
 
-The backend uses Spring Mail/`JavaMailSender` with provider-neutral SMTP variables. Production uses Resend SMTP, authentication, and required STARTTLS. `MAIL_DEVELOPMENT_LOG_ENABLED` is fixed to `false` in the production profile. The sender domain is verified through Cloudflare DNS.
-
-Amazon SES is not the active provider. It is only a possible future alternative.
+The backend uses one Spring Mail/`JavaMailSender` service with provider-neutral
+business logic. `EMAIL_PROVIDER=ses` selects Amazon SES SMTP in production;
+`EMAIL_PROVIDER=resend` selects the retained rollback provider. Selection is
+case-insensitive, only the active provider is validated, and both use
+authentication and required STARTTLS. `MAIL_DEVELOPMENT_LOG_ENABLED` is fixed to
+`false` in the production profile.
 
 The `account_tokens` table stores hashed tokens for `EMAIL_VERIFICATION` and `PASSWORD_RESET`. Validity and one-time use are controlled by `expires_at` and `used_at`. No Spring scheduler, EventBridge job, or AWS Lambda token cleanup exists.
 
@@ -94,7 +97,7 @@ The schemas use `utf8mb4`/`utf8mb4_unicode_ci` for Vietnamese text.
 
 Repository test output from the documented final audit supports:
 
-- Backend: 68 tests passed, 0 failures, 0 errors, 0 skipped.
+- Backend: 72 tests passed, 0 failures, 0 errors, 0 skipped.
 - Backend package build passed.
 - Frontend TypeScript/Vite production build passed.
 - Frontend lint passed.
@@ -113,9 +116,13 @@ An unauthenticated protected API request returning `401 Unauthorized` confirms t
 - `/home/ec2-user/ewallet-backend.env`: production copy used by Docker on EC2.
 - `frontend/.env.production`: Vite build-time production configuration; ignored by Git.
 
-No secret value belongs in documentation. Use `<DB_PASSWORD>`, `<JWT_SECRET>`, `<SMTP_PASSWORD>`, and `<AWS_ACCOUNT_ID>`.
+No secret value belongs in documentation. SES and Resend credentials remain
+external to Git. See [DEPLOYMENT.md](DEPLOYMENT.md) for migration, verification,
+rollback, and future CI/CD secret-injection guidance.
 
-Repository metadata revealed a tracked, misspelled file named `ewallet-bakend.env`. Its contents were not inspected. Because a tracked file is not protected by `.gitignore`, the repository owner should determine whether it contains sensitive data and remove it from tracking/history using an appropriate credential-rotation process if necessary.
+The correctly and incorrectly spelled production environment filenames
+(`ewallet-backend.env` and `ewallet-bakend.env`) are ignored and untracked. Their
+contents were not inspected.
 
 ## Future improvements
 

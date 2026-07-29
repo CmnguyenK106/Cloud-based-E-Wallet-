@@ -23,11 +23,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "jwt.secret=test-only-secret!that-is-at-least-32-bytes-long",
         "frontend.base-url=https://wallet.example.test",
         "app.cors.allowed-origins=https://wallet.example.test",
-        "spring.mail.host=email-smtp.example.test",
-        "spring.mail.port=587",
-        "spring.mail.username=test-smtp-user",
-        "spring.mail.password=test-smtp-password",
-        "mail.from-address=sender@example.test"
+        "mail.provider=ses",
+        "mail.providers.ses.host=email-smtp.example.test",
+        "mail.providers.ses.port=587",
+        "mail.providers.ses.username=test-smtp-user",
+        "mail.providers.ses.password=test-smtp-password",
+        "mail.providers.ses.from-address=sender@example.test"
 })
 @AutoConfigureMockMvc
 class ProductionProfileEndpointIntegrationTests {
