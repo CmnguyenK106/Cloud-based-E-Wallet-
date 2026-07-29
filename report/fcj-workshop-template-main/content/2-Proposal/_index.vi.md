@@ -12,32 +12,22 @@ pre: " <b> 2. </b> "
 
 ## 1. Tóm tắt đề xuất
 
-Nhóm chúng em đề xuất xây dựng **Cloud E-Wallet**, một ứng dụng Web mô phỏng các nghiệp vụ cơ bản của ví điện tử và triển khai trên AWS. Hệ thống giúp người dùng thực hành đăng ký, xác minh email, quản lý tài khoản, theo dõi số dư, nạp tiền mô phỏng, chuyển tiền, thanh toán dịch vụ và xem lịch sử giao dịch. Quản trị viên có thể theo dõi tổng quan, quản lý người dùng, giao dịch và danh mục dịch vụ.
+Nhóm đề xuất dự án **Cloud E-Wallet**, một ứng dụng web mô phỏng ví điện tử cho phép người dùng quản lý tài khoản, nạp tiền, rút tiền, chuyển tiền và thanh toán các dịch vụ trực tuyến. Bên cạnh việc xây dựng các chức năng giao dịch cốt lõi, dự án còn tập trung vào việc triển khai và vận hành toàn bộ hệ thống trên hạ tầng điện toán đám mây AWS. Mục tiêu của dự án là mang đến một môi trường thực hành toàn diện, giúp nhóm nắm bắt quy trình vận hành phần mềm thực tế. Vì đây là dự án thuần túy mang tính giáo dục, mọi giao dịch đều là giả lập và hoàn toàn độc lập với các hệ thống ngân hàng thực tế.
 
-Dự án phục vụ học tập và trình diễn kỹ thuật, không xử lý tiền thật, không kết nối ngân hàng hoặc cổng thanh toán thật và không lưu dữ liệu thẻ.
+## 2. Tuyên bố vấn đề
 
-## 2. Vấn đề
+### 2.1. Vấn đề hiện tại
 
-Một ứng dụng ví điện tử dù ở mức mô phỏng vẫn cần giải quyết đồng thời nhiều yêu cầu: xác thực an toàn, phân quyền người dùng/quản trị viên, cập nhật số dư nhất quán, lưu lịch sử giao dịch, cung cấp giao diện responsive và triển khai các thành phần Web trên Cloud.
+Trong cuộc sống hàng ngày, các giao dịch tài chính truyền thống bằng tiền mặt thường mang lại nhiều bất tiện như mất thời gian chờ đợi, rủi ro rơi rớt, nhầm lẫn khi thối tiền lẻ và đặc biệt là khó khăn trong việc theo dõi chi tiêu một cách có hệ thống. Bên cạnh đó, việc thanh toán các dịch vụ tiện ích như điện, nước hay cước viễn thông theo phương thức truyền thống đòi hỏi người dùng phải đến các điểm thu hộ, gây tiêu tốn thời gian và công sức.
+Bên cạnh đó, việc triển khai một ứng dụng ví điện tử đòi hỏi tính bảo mật cao, dữ liệu giao dịch phải nhất quán và hệ thống cần có khả năng mở rộng. Nếu chỉ phát triển và chạy thử nghiệm trên máy cá nhân (localhost), nhóm sẽ khó đánh giá được hiệu năng thực tế, thiếu môi trường để cấu hình tên miền (domain), phân tách luồng mạng hay thiết lập bảo mật HTTPS. Điều này đặt ra yêu cầu phải có một giải pháp triển khai đám mây toàn diện để giải quyết triệt để các vấn đề trên.
 
-Nếu chỉ chạy local, nhóm khó đánh giá đầy đủ luồng truy cập production, cấu hình domain/HTTPS, tách frontend-backend-database, bảo mật mạng, health check và dịch vụ email. Vì vậy, dự án cần một kiến trúc AWS đủ rõ ràng để triển khai end-to-end nhưng vẫn phù hợp phạm vi thực tập.
+### 2.2. Giải pháp
 
-## 3. Giải pháp đề xuất
+Để giải quyết những bất cập của thanh toán truyền thống, Nền tảng **Cloud E-Wallet** tận dụng các dịch vụ AWS để đảm bảo tính sẵn sàng cao và khả năng mở rộng: **Amazon EC2** và **Application Load Balancer (ALB)** đóng vai trò xử lý các giao dịch một cách mượt mà; **Amazon RDS** (MySQL) được sử dụng để lưu trữ dữ liệu an toàn, áp dụng database transaction nhằm đảm bảo tính toàn vẹn của số dư; **Amazon S3** và **CloudFront** cung cấp giao diện người dùng tốc độ cao. Cuối cùng, hệ thống tích hợp **Amazon SES** cho quy trình gửi email tự động xác thực tài khoản, mang đến trải nghiệm liền mạch và bảo mật như các ứng dụng tài chính thực tế.
 
-Giải pháp gồm:
+## 3. Kiến trúc giải pháp
 
-- React 19, TypeScript và Vite cho frontend.
-- Java 17, Spring Boot, Spring Security và JDBC cho REST API.
-- MySQL cho dữ liệu người dùng, token, ví, dịch vụ và giao dịch.
-- BCrypt và JWT cho xác thực; role `user`/`admin` cho phân quyền.
-- Database transaction và khóa hàng ví để bảo vệ cập nhật số dư.
-- Amazon S3 và CloudFront để phân phối frontend.
-- Application Load Balancer và EC2 chạy Dockerized Spring Boot cho backend.
-- Amazon RDS MySQL trong private subnet.
-- Amazon SES SMTP tại Region Singapore (`ap-southeast-1`) qua STARTTLS cho xác minh email và đặt lại mật khẩu; Resend được giữ làm phương án rollback.
-- Cloudflare DNS quản lý domain và các record xác minh email.
-
-## 4. Kiến trúc giải pháp
+### 3.1. Sơ đồ
 
 Luồng production đề xuất và đã được áp dụng trong dự án:
 
@@ -54,6 +44,8 @@ Người dùng → Cloudflare DNS → Amazon CloudFront
 <!-- IMAGE_PATH: /images/2-Proposal/cloud-ewallet-architecture.png -->
 <!-- Sau khi thêm file, bỏ comment dòng Markdown sau: ![Kiến trúc Cloud E-Wallet](/images/2-Proposal/cloud-ewallet-architecture.png) -->
 
+### 3.2. Dịch vụ sử dụng
+
 | Thành phần | Vai trò |
 | --- | --- |
 | Cloudflare DNS | Quản lý `cloud-ewallet.com` và record xác minh sender domain |
@@ -65,7 +57,38 @@ Người dùng → Cloudflare DNS → Amazon CloudFront
 | Amazon SES SMTP | Gửi email xác minh và đặt lại mật khẩu; dùng SMTP `587`, xác thực và STARTTLS |
 | CloudWatch | Theo dõi metrics AWS; log/alarm tùy chỉnh chỉ ghi nhận khi có cấu hình thực tế |
 
-## 5. Triển khai kỹ thuật
+### 3.3. Thiết kế thành phần
+
+- **Phân giải tên miền:** Cloudflare DNS chịu trách nhiệm quản lý tên miền `cloud-ewallet.com` và lưu trữ các bản ghi để xác minh email.
+- **Giao diện Web:** Amazon S3 lưu trữ các tệp tĩnh của ứng dụng React, kết hợp với mạng phân phối nội dung Amazon CloudFront để tăng tốc độ truy cập và cung cấp kết nối an toàn qua HTTPS.
+- **Định tuyến & Cân bằng tải:** Application Load Balancer (ALB) nhận các yêu cầu API, thực hiện kiểm tra tình trạng (health check) và phân bổ tải một cách an toàn tới các máy chủ backend.
+- **Xử lý nghiệp vụ:** Amazon EC2 đóng vai trò là máy chủ tính toán, chạy các container Spring Boot (Docker) để xử lý toàn bộ logic giao dịch của ví điện tử.
+- **Lưu trữ dữ liệu:** Amazon RDS (MySQL) được triển khai độc lập trong mạng nội bộ (private subnet) để bảo vệ tuyệt đối thông tin người dùng, số dư và lịch sử giao dịch.
+- **Giao tiếp người dùng:** Amazon SES SMTP đảm nhận việc gửi email xác minh và khôi phục mật khẩu thông qua kết nối STARTTLS một cách tự động.
+- **Giám sát hệ thống:** Amazon CloudWatch được sử dụng để theo dõi metrics hiệu năng và ghi nhận tình trạng hoạt động thực tế của các dịch vụ AWS.
+
+## 4. Phạm vi chức năng
+
+### 4.1. Người dùng
+
+- Đăng ký, xác minh/gửi lại email xác minh, đăng nhập và đăng xuất.
+- Quên và đặt lại mật khẩu.
+- Xem/cập nhật hồ sơ và số dư.
+- Nạp tiền mô phỏng, tra cứu người nhận, chuyển tiền và thanh toán dịch vụ.
+- Xem lịch sử giao dịch.
+
+### 4.2. Quản trị viên
+
+- Dashboard tổng quan.
+- Xem và khóa/mở khóa người dùng.
+- Xem giao dịch.
+- Thêm, sửa, kích hoạt hoặc vô hiệu hóa dịch vụ.
+
+### 4.3. Ngoài phạm vi
+
+Tiền thật, KYC, OTP/SMS thật, payment gateway, ECS/Fargate, Auto Scaling và CI/CD không thuộc phiên bản đề xuất ban đầu. ALB chỉ có một EC2 target nên hệ thống chưa đạt high availability đầy đủ.
+
+## 5. Triển khai kĩ thuật
 
 ### Các giai đoạn triển khai
 
@@ -85,57 +108,23 @@ Dự án được nhóm chúng em thực hiện qua năm giai đoạn:
 - **Email:** Amazon SES SMTP tại `ap-southeast-1`, port `587`, authentication và STARTTLS; domain identity/DKIM được xác minh qua Cloudflare.
 - **Bảo mật:** BCrypt, JWT có thời hạn, role `user`/`admin`, secret nằm ngoài Git, HTTPS từ người dùng đến CloudFront và giới hạn inbound theo Security Group.
 - **Vận hành:** ALB dùng `/actuator/health` để health check; CloudWatch cung cấp metrics AWS; frontend và backend hiện được triển khai thủ công.
-## 6. Phạm vi chức năng
 
-### Người dùng
+## 6. Kế hoạch thực hiện
 
-- Đăng ký, xác minh/gửi lại email xác minh, đăng nhập và đăng xuất.
-- Quên và đặt lại mật khẩu.
-- Xem/cập nhật hồ sơ và số dư.
-- Nạp tiền mô phỏng, tra cứu người nhận, chuyển tiền và thanh toán dịch vụ.
-- Xem lịch sử giao dịch.
-
-### Quản trị viên
-
-- Dashboard tổng quan.
-- Xem và khóa/mở khóa người dùng.
-- Xem giao dịch.
-- Thêm, sửa, kích hoạt hoặc vô hiệu hóa dịch vụ.
-
-### Ngoài phạm vi
-
-Tiền thật, KYC, OTP/SMS thật, payment gateway, ECS/Fargate, Auto Scaling và CI/CD không thuộc phiên bản đề xuất ban đầu. ALB chỉ có một EC2 target nên hệ thống chưa đạt high availability đầy đủ.
-
-## 7. Lợi ích dự kiến
-
-- Tạo sản phẩm thực hành full-stack và AWS có thể demo end-to-end.
-- Tách rõ giao diện, API và cơ sở dữ liệu.
-- Áp dụng xác thực, phân quyền và transaction vào bài toán có số dư.
-- Hỗ trợ giao diện responsive và nội dung tiếng Việt UTF-8.
-- Tạo nền tảng để nghiên cứu thêm ECS, CI/CD, Auto Scaling, WAF và giám sát nâng cao.
-
-## 8. Kế hoạch thực hiện
-
-| Giai đoạn | Nội dung |
+| Giai đoạn | Nội dung công việc chi tiết |
 | --- | --- |
-| Tuần 1–2 | Phân tích yêu cầu, thiết kế kiến trúc, database và khởi tạo source |
-| Tuần 3–5 | Xây dựng xác thực, nghiệp vụ ví, giao diện người dùng và admin |
-| Tuần 6 | Kiểm thử, sửa lỗi và Docker hóa backend |
-| Tuần 7–8 | Triển khai S3, CloudFront, EC2, RDS, Amazon SES và ALB; kiểm tra production |
-| Tuần 9 | Hoàn thiện sản phẩm, tài liệu và báo cáo |
-| Tuần 10–11 | Tìm hiểu ECS và CI/CD như hướng phát triển, chưa triển khai production |
+| Tuần 1 | Khảo sát yêu cầu, thiết kế kiến trúc tổng thể AWS, sơ đồ cơ sở dữ liệu và chuẩn bị kho lưu trữ mã nguồn. |
+| Tuần 2 | Khởi tạo dự án, cấu hình môi trường phát triển cục bộ, thiết lập các API cơ bản và cấu trúc thư mục frontend. |
+| Tuần 3 | Lập trình các module cốt lõi: Đăng ký, đăng nhập (JWT), xác thực người dùng và phân quyền (Admin/User). |
+| Tuần 4 | Lập trình nghiệp vụ ví điện tử (1): Tích hợp tính năng nạp tiền, theo dõi số dư và quản lý thông tin tài khoản. |
+| Tuần 5 | Lập trình nghiệp vụ ví điện tử (2): Tính năng chuyển khoản, thanh toán dịch vụ và ghi nhận lịch sử giao dịch. |
+| Tuần 6 | Xây dựng giao diện trang quản trị viên (Admin Dashboard), kiểm thử (Unit test/Integration test) toàn bộ hệ thống cục bộ. |
+| Tuần 7 | Đóng gói ứng dụng (Docker hóa Spring Boot) và cấu hình hạ tầng mạng AWS cơ sở (VPC, Security Groups, EC2, RDS). |
+| Tuần 8 | Triển khai các dịch vụ AWS phụ trợ: Thiết lập S3, CloudFront cho frontend và cấu hình Application Load Balancer (ALB). |
+| Tuần 9 | Cấu hình tên miền với Cloudflare DNS, tích hợp tính năng gửi email xác thực bằng Amazon SES, và kiểm thử production. |
+| Tuần 10 | Đánh giá tổng kết, tối ưu hóa hiệu năng, xử lý lỗi tồn đọng, hoàn thiện báo cáo và tài liệu hướng dẫn dự án. |
 
-## 9. Rủi ro và biện pháp giảm thiểu
-
-| Rủi ro | Ảnh hưởng | Biện pháp |
-| --- | --- | --- |
-| Lộ secret | Cao | Tách file môi trường, dùng placeholder, không commit giá trị thật |
-| Sai lệch số dư | Cao | Transaction, validation và khóa hàng ví |
-| Backend gián đoạn | Cao | Health check ALB; ghi nhận giới hạn một target và đề xuất mở rộng |
-| Chi phí AWS | Trung bình | Theo dõi Billing/Cost Explorer và cleanup tài nguyên |
-| Email không gửi được | Trung bình | Xác minh domain trong SES, kiểm tra trạng thái sandbox, STARTTLS, SMTP credentials, bounce và complaint |
-
-## 10. Chi phí
+## 7. Ước tính ngân sách
 
 Chi phí dưới đây là **ước tính**, không phải hóa đơn thực tế. Nhóm chúng em giả định tài nguyên đặt tại Region Singapore (`ap-southeast-1`), sử dụng giá On-Demand, chạy 730 giờ/tháng và chưa gồm thuế hoặc Free Tier. Mức tối đa chỉ là cận trên trong phạm vi giả định của báo cáo; AWS không tự giới hạn chi phí nếu lưu lượng hoặc tài nguyên tiếp tục tăng.
 
@@ -188,7 +177,17 @@ Giá AWS thay đổi theo thời điểm, Region, loại tài khoản và mức 
 <!-- IMAGE_PATH: /images/2-Proposal/aws-cost-estimate.png -->
 <!-- Sau khi thêm file, bỏ comment dòng Markdown sau: ![Ước tính chi phí AWS](/images/2-Proposal/aws-cost-estimate.png) -->
 
-## 11. Kết quả mong đợi
+## 8. Đánh giá rủi ro và chiến lược giảm thiểu
+
+| Rủi ro | Ảnh hưởng | Biện pháp |
+| --- | --- | --- |
+| Lộ secret | Cao | Tách file môi trường, dùng placeholder, không commit giá trị thật |
+| Sai lệch số dư | Cao | Transaction, validation và khóa hàng ví |
+| Backend gián đoạn | Cao | Health check ALB; ghi nhận giới hạn một target và đề xuất mở rộng |
+| Chi phí AWS | Trung bình | Theo dõi Billing/Cost Explorer và cleanup tài nguyên |
+| Email không gửi được | Trung bình | Xác minh domain trong SES, kiểm tra trạng thái sandbox, STARTTLS, SMTP credentials, bounce và complaint |
+
+## 9. Kết quả kì vọng
 
 Sản phẩm có thể truy cập qua `https://cloud-ewallet.com`; frontend được phân phối bởi CloudFront/S3; API đi qua CloudFront/ALB đến Spring Boot container; backend kết nối RDS và gửi email bằng Amazon SES SMTP. Các workflow chính được kiểm thử và giới hạn kiến trúc được trình bày trung thực.
 
