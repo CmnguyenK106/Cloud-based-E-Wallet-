@@ -7,7 +7,7 @@ pre: " <b> 2. </b> "
 ---
 
 
-**Cloud E-Wallet – A simulated e-wallet application deployed on AWS**
+# Cloud E-Wallet – A simulated e-wallet application deployed on AWS
 
 
 ## 1. Executive summary
