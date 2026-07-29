@@ -7,44 +7,38 @@ pre: " <b> 2. </b> "
 ---
 
 
-# Cloud E-Wallet – Ứng dụng ví điện tử mô phỏng triển khai trên AWS
+# Cloud E-Wallet  
+## Hệ thống ví điện tử ứng dụng kiến trúc điện toán đám mây AWS
 
 
-## 1. Tóm tắt đề xuất
+### 1. Giới thiệu tổng quan
 
 Nhóm đề xuất dự án **Cloud E-Wallet**, một ứng dụng web mô phỏng ví điện tử cho phép người dùng quản lý tài khoản, nạp tiền, rút tiền, chuyển tiền và thanh toán các dịch vụ trực tuyến. Bên cạnh việc xây dựng các chức năng giao dịch cốt lõi, dự án còn tập trung vào việc triển khai và vận hành toàn bộ hệ thống trên hạ tầng điện toán đám mây AWS. Mục tiêu của dự án là mang đến một môi trường thực hành toàn diện, giúp nhóm nắm bắt quy trình vận hành phần mềm thực tế. Vì đây là dự án thuần túy mang tính giáo dục, mọi giao dịch đều là giả lập và hoàn toàn độc lập với các hệ thống ngân hàng thực tế.
 
-## 2. Tuyên bố vấn đề
-
-### 2.1. Vấn đề hiện tại
-
+### 2. Tuyên bố vấn đề
+#### *Vấn đề hiện tại*
 Trong cuộc sống hàng ngày, các giao dịch tài chính truyền thống bằng tiền mặt thường mang lại nhiều bất tiện như mất thời gian chờ đợi, rủi ro rơi rớt, nhầm lẫn khi thối tiền lẻ và đặc biệt là khó khăn trong việc theo dõi chi tiêu một cách có hệ thống. Bên cạnh đó, việc thanh toán các dịch vụ tiện ích như điện, nước hay cước viễn thông theo phương thức truyền thống đòi hỏi người dùng phải đến các điểm thu hộ, gây tiêu tốn thời gian và công sức.
 Bên cạnh đó, việc triển khai một ứng dụng ví điện tử đòi hỏi tính bảo mật cao, dữ liệu giao dịch phải nhất quán và hệ thống cần có khả năng mở rộng. Nếu chỉ phát triển và chạy thử nghiệm trên máy cá nhân (localhost), nhóm sẽ khó đánh giá được hiệu năng thực tế, thiếu môi trường để cấu hình tên miền (domain), phân tách luồng mạng hay thiết lập bảo mật HTTPS. Điều này đặt ra yêu cầu phải có một giải pháp triển khai đám mây toàn diện để giải quyết triệt để các vấn đề trên.
 
-### 2.2. Giải pháp
+#### *Giải pháp*
 
 Để giải quyết những bất cập của thanh toán truyền thống, Nền tảng **Cloud E-Wallet** tận dụng các dịch vụ AWS để đảm bảo tính sẵn sàng cao và khả năng mở rộng: **Amazon EC2** và **Application Load Balancer (ALB)** đóng vai trò xử lý các giao dịch một cách mượt mà; **Amazon RDS** (MySQL) được sử dụng để lưu trữ dữ liệu an toàn, áp dụng database transaction nhằm đảm bảo tính toàn vẹn của số dư; **Amazon S3** và **CloudFront** cung cấp giao diện người dùng tốc độ cao. Cuối cùng, hệ thống tích hợp **Amazon SES** cho quy trình gửi email tự động xác thực tài khoản, mang đến trải nghiệm liền mạch và bảo mật như các ứng dụng tài chính thực tế.
 
-## 3. Kiến trúc giải pháp
+### 3. Kiến trúc giải pháp
 
-### 3.1. Sơ đồ
+#### *Sơ đồ*
 
-Luồng production đề xuất và đã được áp dụng trong dự án:
+![Kiến trúc triển khai Cloud E-Wallet trên AWS](/images/5-Workshop/5.1-Prerequisites/architecture.png)
+<p align="center"><i>Sơ đồ triển khai</i></p>
 
-```text
-Người dùng → Cloudflare DNS → Amazon CloudFront
-                                  ├─ Default (*) → S3 frontend
-                                  └─ /api/* → ALB → EC2/Docker/Spring Boot
-                                                       ├─ RDS MySQL
-                                                       └─ Amazon SES SMTP
-```
+Mô tả luồng:
+1. **Truy cập:** Người dùng truy cập qua tên miền do **Cloudflare DNS** quản lý, sau đó được điều hướng đến **Amazon CloudFront**.
+2. **Định tuyến:** CloudFront chuyển yêu cầu tải giao diện tĩnh đến **Amazon S3**, và chuyển các yêu cầu gọi API đến bộ cân bằng tải **ALB**.
+3. **Xử lý logic:** ALB phân phối đều yêu cầu API cho máy chủ **Amazon EC2** để xử lý các giao dịch ví điện tử.
+4. **Dữ liệu & Giao tiếp:** EC2 lưu trữ dữ liệu vào cơ sở dữ liệu **Amazon RDS** và dùng **Amazon SES** để tự động gửi email.
+5. **Giám sát:** Hoạt động của hệ thống được theo dõi thông qua **Amazon CloudWatch**.
 
-> **Hình cần bổ sung:** Sơ đồ kiến trúc Cloud E-Wallet do nhóm xây dựng, thể hiện User, Cloudflare, CloudFront, S3, ALB, EC2, RDS, Internet Gateway, Amazon SES và CloudWatch.
-
-<!-- IMAGE_PATH: /images/2-Proposal/cloud-ewallet-architecture.png -->
-<!-- Sau khi thêm file, bỏ comment dòng Markdown sau: ![Kiến trúc Cloud E-Wallet](/images/2-Proposal/cloud-ewallet-architecture.png) -->
-
-### 3.2. Dịch vụ sử dụng
+#### *Dịch vụ sử dụng*
 
 | Thành phần | Vai trò |
 | --- | --- |
@@ -84,9 +78,6 @@ Người dùng → Cloudflare DNS → Amazon CloudFront
 - Xem giao dịch.
 - Thêm, sửa, kích hoạt hoặc vô hiệu hóa dịch vụ.
 
-### 4.3. Ngoài phạm vi
-
-Tiền thật, KYC, OTP/SMS thật, payment gateway, ECS/Fargate, Auto Scaling và CI/CD không thuộc phiên bản đề xuất ban đầu. ALB chỉ có một EC2 target nên hệ thống chưa đạt high availability đầy đủ.
 
 ## 5. Triển khai kĩ thuật
 
@@ -179,16 +170,20 @@ Giá AWS thay đổi theo thời điểm, Region, loại tài khoản và mức 
 
 ## 8. Đánh giá rủi ro và chiến lược giảm thiểu
 
-| Rủi ro | Ảnh hưởng | Biện pháp |
-| --- | --- | --- |
-| Lộ secret | Cao | Tách file môi trường, dùng placeholder, không commit giá trị thật |
-| Sai lệch số dư | Cao | Transaction, validation và khóa hàng ví |
-| Backend gián đoạn | Cao | Health check ALB; ghi nhận giới hạn một target và đề xuất mở rộng |
-| Chi phí AWS | Trung bình | Theo dõi Billing/Cost Explorer và cleanup tài nguyên |
-| Email không gửi được | Trung bình | Xác minh domain trong SES, kiểm tra trạng thái sandbox, STARTTLS, SMTP credentials, bounce và complaint |
+| Rủi ro | Mức độ ảnh hưởng | Khả năng xảy ra | Chiến lược giảm thiểu |
+| --- | --- | --- | --- |
+| **Lộ lọt dữ liệu nhạy cảm (Credentials)** | Rất Cao | Thấp | - Loại bỏ toàn bộ thông tin nhạy cảm (mật khẩu DB, JWT secret, AWS keys) ra khỏi mã nguồn.<br>- Sử dụng file `.env` cục bộ và tính năng quản lý biến môi trường của nền tảng khi triển khai lên mây. |
+| **Sai lệch dữ liệu giao dịch & số dư** | Rất Cao | Trung bình | - Áp dụng **Database Transaction** (ACID) cho mọi nghiệp vụ nạp/chuyển tiền.<br>- Sử dụng cơ chế khóa dòng (Row-level locking) trong MySQL để tránh lỗi ghi đè khi có nhiều giao dịch đồng thời (Race condition). |
+| **Gián đoạn dịch vụ Backend (Downtime)** | Cao | Trung bình | - Thiết lập cơ chế kiểm tra sức khỏe liên tục (**Health check**) thông qua ALB để loại bỏ các node lỗi.<br>- Cấu hình Docker tự động khởi động lại container khi có sự cố crash ứng dụng. |
+| **Phát sinh chi phí AWS ngoài kiểm soát** | Trung bình | Trung bình | - Thường xuyên theo dõi dashboard **AWS Billing & Cost Explorer**.<br>- Thiết lập cảnh báo ngân sách (AWS Budgets) qua email nếu chi phí vượt quá giới hạn $5/tháng.<br>- Chủ động xóa (cleanup) tài nguyên không sử dụng sau khi kết thúc dự án. |
+| **Gián đoạn tính năng gửi Email (SES)** | Trung bình | Cao | - Hoàn tất cấu hình các bản ghi DNS (DKIM, SPF) trên Cloudflare để tránh việc email bị đánh dấu là spam.<br>- Theo dõi giới hạn gửi (sandbox limits) và chuẩn bị phương án dự phòng chuyển sang dịch vụ email khác nếu AWS SES từ chối cấp quyền gửi ra ngoài (production access). |
 
 ## 9. Kết quả kì vọng
 
-Sản phẩm có thể truy cập qua `https://cloud-ewallet.com`; frontend được phân phối bởi CloudFront/S3; API đi qua CloudFront/ALB đến Spring Boot container; backend kết nối RDS và gửi email bằng Amazon SES SMTP. Các workflow chính được kiểm thử và giới hạn kiến trúc được trình bày trung thực.
+Dự án Cloud E-Wallet khi hoàn thành được kỳ vọng sẽ giải quyết triệt để các bất tiện của giao dịch tiền mặt truyền thống thông qua các giá trị chức năng cụ thể:
+
+- **Đối với người dùng cuối:** Mang đến một nền tảng ví điện tử trực tuyến tiện lợi, an toàn. Người dùng có thể dễ dàng nạp tiền (mô phỏng), thực hiện các giao dịch chuyển khoản nội bộ nhanh chóng và thanh toán các hóa đơn dịch vụ (điện, nước, internet,...) chỉ với vài thao tác. Tất cả lịch sử chi tiêu đều được lưu trữ và thống kê minh bạch giúp quản lý tài chính cá nhân hiệu quả hơn.
+- **Đối với quản trị viên:** Cung cấp một bảng điều khiển trung tâm (Admin Dashboard) trực quan, cho phép quản lý chặt chẽ tài khoản người dùng, theo dõi toàn cảnh dòng tiền mô phỏng trong hệ thống, cũng như giám sát và cấu hình linh hoạt danh mục các dịch vụ thanh toán.
+- **Về mặt hệ thống:** Một nền tảng hoạt động trơn tru, bảo mật cao và luôn sẵn sàng 24/7 nhờ sức mạnh của kiến trúc đám mây AWS. Trải nghiệm người dùng được tối ưu hóa với tốc độ tải trang nhanh, xác thực an toàn bằng mã hóa và các quy trình tự động hóa vận hành mượt mà.
 
 
