@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Dọn dẹp tài nguyên"
 date: 2024-01-01
 weight: 7
@@ -20,7 +20,7 @@ Tránh chi phí sau demo mà không xóa nhầm dữ liệu hoặc tài nguyên 
 6. Xóa RDS sau khi quyết định final snapshot; xóa có thể làm mất dữ liệu.
 7. Xóa Security Group khi không còn phụ thuộc.
 8. Chỉ xóa subnet/VPC khi không còn network interface/resource.
-9. Gỡ Cloudflare/Resend records nếu domain không dùng cho mục đích khác.
+9. Chỉ gỡ Cloudflare/SES verification và DKIM records, xóa SES identity hoặc SMTP credentials khi domain và ứng dụng không còn sử dụng email.
 10. Kiểm tra AWS Billing/Cost Explorer sau cleanup.
 
 > **Hình cần bổ sung:** Danh sách tài nguyên trước cleanup và Billing trước/sau cleanup.

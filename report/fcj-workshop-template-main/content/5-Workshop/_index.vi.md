@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Workshop"
 date: 2024-01-01
 weight: 5
@@ -13,7 +13,7 @@ User → Cloudflare DNS → CloudFront
                            ├─ (*) → S3 frontend
                            └─ /api/* → ALB → EC2/Docker/Spring Boot
                                                 ├─ RDS MySQL
-                                                └─ Resend SMTP
+                                                └─ Amazon SES SMTP
 ```
 
 Cloud E-Wallet dùng số dư mô phỏng, không xử lý tiền thật và không gửi dữ liệu thẻ đến backend.
@@ -25,7 +25,7 @@ Cloud E-Wallet dùng số dư mô phỏng, không xử lý tiền thật và kh�
 | [5.1. Chuẩn bị](5.1-Prerequisites/) | Công cụ, tài khoản, source và biến môi trường | Môi trường sẵn sàng, không lộ secret |
 | [5.2. Frontend](5.2-Frontend-deployment/) | Build React, upload S3, chuẩn bị CloudFront origin | Static frontend đã được triển khai |
 | [5.3. Database](5.3-Database-deployment/) | Tạo RDS, Security Group và schema | MySQL production sẵn sàng |
-| [5.4. Backend](5.4-Backend-deployment/) | Build image, chạy container EC2, cấu hình Resend | Spring Boot hoạt động trên port 8080 |
+| [5.4. Backend](5.4-Backend-deployment/) | Build image, chạy container EC2, cấu hình Amazon SES SMTP | Spring Boot hoạt động trên port 8080 |
 | [5.5. Routing và bảo mật](5.5-Traffic-security/) | ALB, health check, CloudFront behaviors, Cloudflare và SG | Traffic đi đúng chuỗi và EC2 không lộ trực tiếp |
 | [5.6. Kiểm tra](5.6-Validation/) | Build/test, health và smoke test production | Có bằng chứng hệ thống hoạt động |
 | [5.7. Dọn dẹp](5.7-Cleanup/) | Sao lưu và xóa tài nguyên theo phụ thuộc | Hạn chế chi phí sau demo |

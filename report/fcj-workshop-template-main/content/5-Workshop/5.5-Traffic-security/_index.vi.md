@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Cấu hình ALB, CloudFront, DNS và bảo mật mạng"
 date: 2024-01-01
 weight: 5
@@ -50,7 +50,7 @@ Thêm ALB origin và behavior `/api/*` trỏ đến ALB qua HTTP. Default `(*)` 
 
 ## Bước 5: Cloudflare DNS
 
-Trỏ `cloud-ewallet.com` đến CloudFront theo record thực tế và giữ các record xác minh Resend.
+Trỏ `cloud-ewallet.com` đến CloudFront theo record thực tế và giữ các CNAME xác minh domain và Easy DKIM của Amazon SES. Các record SES để DNS only, không bật Cloudflare proxy.
 
 > **Hình cần bổ sung:** Cloudflare DNS records, che dữ liệu không cần thiết.
 

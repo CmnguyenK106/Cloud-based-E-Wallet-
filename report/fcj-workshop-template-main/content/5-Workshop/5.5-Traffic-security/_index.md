@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Configure ALB, CloudFront, DNS, and network security"
 date: 2024-01-01
 weight: 5
@@ -50,7 +50,7 @@ Add the ALB origin and `/api/*` behavior over HTTP. Default `(*)` remains on S3.
 
 ## Step 5: Cloudflare DNS
 
-Point `cloud-ewallet.com` to CloudFront according to the live record and retain Resend verification records.
+Point `cloud-ewallet.com` to CloudFront according to the live record and retain the Amazon SES domain-verification and Easy DKIM CNAME records. Keep SES records as DNS only rather than Cloudflare-proxied.
 
 > **Image required:** Redacted Cloudflare DNS records.
 

@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Resource cleanup"
 date: 2024-01-01
 weight: 7
@@ -20,7 +20,7 @@ Avoid post-demo cost without deleting required data or active resources. Never u
 6. Delete RDS after deciding on a final snapshot; deletion may destroy data.
 7. Delete security groups after dependencies are gone.
 8. Delete subnets/VPC only after all network interfaces/resources are gone.
-9. Remove Cloudflare/Resend records only if the domain is unused elsewhere.
+9. Remove Cloudflare/SES verification and DKIM records, the SES identity, or SMTP credentials only when the domain and application no longer use email.
 10. Review AWS Billing/Cost Explorer after cleanup.
 
 > **Image required:** Resource inventory and Billing before/after cleanup.

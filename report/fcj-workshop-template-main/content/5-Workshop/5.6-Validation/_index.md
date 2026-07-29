@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Post-deployment validation"
 date: 2024-01-01
 weight: 6
@@ -32,13 +32,14 @@ Collect build, health, network, and production workflow evidence after deploymen
 
 ## Production smoke tests
 
-Test registration, verification, login, profile, recipient lookup, simulated deposit, transfer, payment, history, administration, and password reset. Hide email, phone, token, and personal data.
+Test registration, verification/resend, login, profile, recipient lookup, simulated deposit, transfer, payment, history, administration, and forgot/reset password. Review SES Sending Statistics for sends, deliveries, bounces, and complaints. Hide email, phone, token, SMTP credentials, and personal data.
 
-> **Image required:** Customer, administrator, and email workflow evidence.
+> **Image required:** Customer and administrator workflows, email received through Amazon SES, and SES Sending Statistics.
 
 <!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/user-workflows.png -->
 <!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/admin-workflows.png -->
 <!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/email-workflows.png -->
+<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/ses-sending-statistics.png -->
 
 ## Monitoring
 

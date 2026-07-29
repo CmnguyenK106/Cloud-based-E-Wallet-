@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Deploy the backend on Amazon EC2"
 date: 2024-01-01
 weight: 4
@@ -8,7 +8,7 @@ pre: " <b> 5.4. </b> "
 
 ## Objective
 
-Build the Spring Boot Docker image, run it on EC2, and connect RDS/Resend through safe runtime configuration.
+Build the Spring Boot Docker image, run it on EC2, and connect RDS/Amazon SES through safe runtime configuration.
 
 ## Step 1: Build and validate the backend
 
@@ -36,7 +36,7 @@ EC2 currently resides in a public subnet with public IPv4 for manual SSH and out
 
 ## Step 3: Create the runtime environment file
 
-On EC2, create `/home/ec2-user/ewallet-backend.env` with production values. Do not capture its contents. It contains profile, RDS, JWT, frontend/CORS, and Resend SMTP configuration.
+On EC2, create `/home/ec2-user/ewallet-backend.env` with production values. Do not capture its contents. It contains profile, RDS, JWT, frontend/CORS, and Amazon SES SMTP configuration. Resend is retained outside Git only for rollback.
 
 ## Step 4: Run the container
 
@@ -56,14 +56,22 @@ Root `docker-compose.yml` is local MySQL only, not production.
 <!-- IMAGE_PATH: /images/5-Workshop/5.4-Backend-deployment/docker-ps.png -->
 <!-- IMAGE_PATH: /images/5-Workshop/5.4-Backend-deployment/backend-startup-log.png -->
 
-## Step 5: Configure Resend
+## Step 5: Configure Amazon SES
 
-Production uses authenticated SMTP `587` with STARTTLS. Cloudflare stores sender-domain verification records. Amazon SES is not used, and no inbound SMTP port is opened on EC2.
+1. Select Amazon SES in Singapore (`ap-southeast-1`) to match the SMTP endpoint configured by the application.
+2. Create a domain identity for `cloud-ewallet.com`, enable Easy DKIM, and add the SES verification/DKIM CNAME records to Cloudflare DNS. Do not proxy email records.
+3. Confirm that the identity becomes **Verified**. If the SES account remains in the sandbox, verify recipient addresses or request production access before testing with external users.
+4. Create dedicated SES SMTP credentials for the application; these are not ordinary AWS access keys.
+5. In `/home/ec2-user/ewallet-backend.env`, set `EMAIL_PROVIDER=ses`, endpoint `email-smtp.ap-southeast-1.amazonaws.com`, port `587`, the SMTP username/password, and sender `noreply@cloud-ewallet.com`. Never commit or capture real credentials.
+6. Recreate the container to load the configuration. Spring Mail uses SMTP authentication and STARTTLS; EC2 initiates an outbound connection, so no inbound SMTP port is required.
 
-> **Image required:** Verified Resend domain and received verification/reset email.
+The code retains `EMAIL_PROVIDER=resend` as a rollback option, but Amazon SES is the current production provider.
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.4-Backend-deployment/resend-verified.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.4-Backend-deployment/resend-email.png -->
+> **Image required:** Verified SES domain identity, redacted DKIM records in Cloudflare, SMTP settings with credentials hidden, and a received verification/reset email.
+
+<!-- IMAGE_PATH: /images/5-Workshop/5.4-Backend-deployment/ses-identity-verified.png -->
+<!-- IMAGE_PATH: /images/5-Workshop/5.4-Backend-deployment/ses-cloudflare-dkim.png -->
+<!-- IMAGE_PATH: /images/5-Workshop/5.4-Backend-deployment/ses-email.png -->
 
 ## Validation
 

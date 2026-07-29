@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Kiểm tra hệ thống sau triển khai"
 date: 2024-01-01
 weight: 6
@@ -32,13 +32,14 @@ Thu thập bằng chứng build, health, network và workflow production sau khi
 
 ## Smoke test production
 
-Kiểm tra đăng ký, xác minh email, đăng nhập, profile, recipient lookup, nạp tiền mô phỏng, chuyển tiền, thanh toán, lịch sử, admin và reset password. Che email, phone, token và dữ liệu cá nhân trong ảnh.
+Kiểm tra đăng ký, gửi lại/xác minh email, đăng nhập, profile, recipient lookup, nạp tiền mô phỏng, chuyển tiền, thanh toán, lịch sử, admin và quên/đặt lại mật khẩu. Đối chiếu SES Sending Statistics để kiểm tra lượt gửi, delivery, bounce và complaint. Che email, phone, token, SMTP credential và dữ liệu cá nhân trong ảnh.
 
-> **Hình cần bổ sung:** Bộ ảnh smoke test người dùng và quản trị viên.
+> **Hình cần bổ sung:** Bộ ảnh smoke test người dùng, quản trị viên, email nhận qua Amazon SES và SES Sending Statistics.
 
 <!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/user-workflows.png -->
 <!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/admin-workflows.png -->
 <!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/email-workflows.png -->
+<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/ses-sending-statistics.png -->
 
 ## Monitoring
 

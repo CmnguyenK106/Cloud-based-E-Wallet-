@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Chuẩn bị môi trường triển khai"
 date: 2024-01-01
 weight: 1
@@ -19,8 +19,8 @@ Chuẩn bị đầy đủ công cụ, source, tài khoản và cấu hình trư�
 | Docker | `docker --version` | Build và chạy backend image |
 | Git | `git --version` | Quản lý source |
 | AWS CLI | `aws --version` | Tùy chọn nếu dùng Console |
-| AWS account | Đăng nhập Console | Quyền phù hợp cho S3, CloudFront, EC2, ALB, RDS |
-| Cloudflare | Kiểm tra zone | Quản lý `cloud-ewallet.com` và Resend records |
+| AWS account | Đăng nhập Console | Quyền phù hợp cho S3, CloudFront, EC2, ALB, RDS và SES |
+| Cloudflare | Kiểm tra zone | Quản lý `cloud-ewallet.com` và các record xác minh Amazon SES |
 
 > **Hình cần bổ sung:** Terminal kiểm tra phiên bản công cụ.
 
@@ -32,9 +32,9 @@ Chuẩn bị đầy đủ công cụ, source, tài khoản và cấu hình trư�
 
 ## Chuẩn bị biến môi trường
 
-Backend dùng `/home/ec2-user/ewallet-backend.env`; frontend dùng `frontend/.env.production` tại thời điểm build. Chuẩn bị các tên biến `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `FRONTEND_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM_ADDRESS` và `VITE_API_BASE_URL`.
+Backend dùng `/home/ec2-user/ewallet-backend.env`; frontend dùng `frontend/.env.production` tại thời điểm build. Chuẩn bị `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `FRONTEND_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `VITE_API_BASE_URL` và các biến mail `EMAIL_PROVIDER=ses`, `SES_SMTP_HOST`, `SES_SMTP_PORT`, `SES_SMTP_USERNAME`, `SES_SMTP_PASSWORD`, `SES_MAIL_FROM_ADDRESS`.
 
-Không đưa giá trị thật vào tài liệu hoặc Git. Dùng placeholder như `<DB_ENDPOINT>`, `<JWT_SECRET>` và `<SMTP_PASSWORD>`.
+Không đưa giá trị thật vào tài liệu hoặc Git. Dùng placeholder như `<DB_ENDPOINT>`, `<JWT_SECRET>` và `<SES_SMTP_PASSWORD>`.
 
 ## Kiểm tra
 

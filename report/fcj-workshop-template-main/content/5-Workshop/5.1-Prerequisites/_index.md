@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Deployment prerequisites"
 date: 2024-01-01
 weight: 1
@@ -19,8 +19,8 @@ Prepare tools, source, accounts, and configuration before creating or updating A
 | Docker | `docker --version` | Build and run backend image |
 | Git | `git --version` | Source management |
 | AWS CLI | `aws --version` | Optional when using Console |
-| AWS account | Sign in | Appropriate S3, CloudFront, EC2, ALB, RDS access |
-| Cloudflare | Review zone | Manage `cloud-ewallet.com` and Resend records |
+| AWS account | Sign in | Appropriate S3, CloudFront, EC2, ALB, RDS, and SES access |
+| Cloudflare | Review zone | Manage `cloud-ewallet.com` and Amazon SES verification records |
 
 > **Image required:** Terminal showing tool versions.
 
@@ -32,9 +32,9 @@ Prepare tools, source, accounts, and configuration before creating or updating A
 
 ## Environment preparation
 
-The backend uses `/home/ec2-user/ewallet-backend.env`; the frontend uses `frontend/.env.production` at build time. Prepare variable names for database, JWT, frontend/CORS, SMTP, and `VITE_API_BASE_URL`.
+The backend uses `/home/ec2-user/ewallet-backend.env`; the frontend uses `frontend/.env.production` at build time. Prepare the database, JWT, frontend/CORS, and `VITE_API_BASE_URL` variables, plus `EMAIL_PROVIDER=ses`, `SES_SMTP_HOST`, `SES_SMTP_PORT`, `SES_SMTP_USERNAME`, `SES_SMTP_PASSWORD`, and `SES_MAIL_FROM_ADDRESS`.
 
-Do not place real values in documentation or Git. Use placeholders such as `<DB_ENDPOINT>`, `<JWT_SECRET>`, and `<SMTP_PASSWORD>`.
+Do not place real values in documentation or Git. Use placeholders such as `<DB_ENDPOINT>`, `<JWT_SECRET>`, and `<SES_SMTP_PASSWORD>`.
 
 ## Validation
 
