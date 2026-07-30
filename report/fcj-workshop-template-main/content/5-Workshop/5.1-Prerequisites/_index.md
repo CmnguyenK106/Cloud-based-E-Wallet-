@@ -22,95 +22,16 @@ Prepare tools, source, accounts, and configuration before creating or updating A
 | AWS account | Sign in | Appropriate S3, CloudFront, EC2, ALB, RDS, and SES access |
 | Cloudflare | Review zone | Manage `cloud-ewallet.com` and Amazon SES verification records |
 
-> **Image required:** Terminal showing tool versions.
-
-<!-- IMAGE_PATH: /images/5-Workshop/5.1-Prerequisites/tool-versions.png -->
-
-> **Image required:** Source tree with real environment files hidden.
-
-<!-- IMAGE_PATH: /images/5-Workshop/5.1-Prerequisites/source-structure.png -->
-
 ## IAM permissions
 
-If separate deployment permissions are required, an IAM user or role can be used instead of the root account. The following reference policy covers routine project work: updating the S3 frontend, creating CloudFront invalidations, inspecting EC2/ALB/RDS, reviewing CloudWatch, and sending or checking email through Amazon SES.
+The project uses two IAM users with separate responsibilities, avoiding the root account for routine deployment work:
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "UpdateFrontendBucket",
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket",
-        "s3:GetBucketLocation"
-      ],
-      "Resource": "arn:aws:s3:::<FRONTEND_BUCKET_NAME>"
-    },
-    {
-      "Sid": "ManageFrontendObjects",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject"
-      ],
-      "Resource": "arn:aws:s3:::<FRONTEND_BUCKET_NAME>/*"
-    },
-    {
-      "Sid": "RefreshCloudFront",
-      "Effect": "Allow",
-      "Action": [
-        "cloudfront:GetDistribution",
-        "cloudfront:GetDistributionConfig",
-        "cloudfront:CreateInvalidation"
-      ],
-      "Resource": "arn:aws:cloudfront::<AWS_ACCOUNT_ID>:distribution/<DISTRIBUTION_ID>"
-    },
-    {
-      "Sid": "InspectRuntimeResources",
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeSecurityGroups",
-        "elasticloadbalancing:DescribeLoadBalancers",
-        "elasticloadbalancing:DescribeListeners",
-        "elasticloadbalancing:DescribeTargetGroups",
-        "elasticloadbalancing:DescribeTargetHealth",
-        "rds:DescribeDBInstances",
-        "rds:DescribeDBSubnetGroups",
-        "cloudwatch:ListMetrics",
-        "cloudwatch:GetMetricData",
-        "cloudwatch:GetMetricStatistics"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "SendFromProjectIdentity",
-      "Effect": "Allow",
-      "Action": [
-        "ses:SendEmail",
-        "ses:SendRawEmail",
-        "sesv2:GetEmailIdentity"
-      ],
-      "Resource": "arn:aws:ses:ap-southeast-1:<AWS_ACCOUNT_ID>:identity/cloud-ewallet.com"
-    },
-    {
-      "Sid": "InspectSESAccount",
-      "Effect": "Allow",
-      "Action": [
-        "ses:GetSendQuota",
-        "ses:GetSendStatistics",
-        "sesv2:GetAccount"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
+| IAM user | Access method | Project responsibility |
+| --- | --- | --- |
+| `khoi_admin` | AWS Management Console sign-in | Manages S3, CloudFront, EC2, the Application Load Balancer, RDS, SES, and CloudWatch. In the internship environment, the user receives `AdministratorAccess` through `admin-group`. |
+| `ses-smtp-user-cloud-ewallet` | Programmatic access through SES SMTP credentials; no Console sign-in | Allows the Spring Boot backend to authenticate with Amazon SES SMTP and send account-verification or password-reset email. This user is not used for builds or infrastructure administration. |
 
-Replace `<FRONTEND_BUCKET_NAME>`, `<AWS_ACCOUNT_ID>`, and `<DISTRIBUTION_ID>` with real identifiers before creating the policy. Describe operations, CloudWatch, and SES quota APIs do not support resource-level ARN restrictions and therefore require `Resource: "*"`. This routine policy excludes VPC, EC2, ALB, and RDS creation/deletion; full provisioning or cleanup should use a separate time-limited deployment role with only the additional permissions required for that step.
-
+`khoi_admin` has broad permissions to support hands-on deployment across several AWS services. Credentials for `ses-smtp-user-cloud-ewallet` are stored only in the EC2 environment file and never included in source code, screenshots, or the report.
 
 ## Prepare the environment configuration
 
@@ -186,6 +107,14 @@ The populated environment file is stored only on the deployment host and is neve
 - The AWS account has the required least-privilege permissions.
 - The team has agreed on Singapore (`ap-southeast-1`), the naming convention, and the resources to deploy.
 
-## Expected result
+## Configure the VPC
 
-Every team member follows one process without sharing secrets through source or reports.
+The project uses `ewallet-vpc` with CIDR `10.0.0.0/16`, DNS resolution, and DNS hostnames enabled. Four subnets are distributed across `ap-southeast-1a` and `ap-southeast-1b`: two public subnets for Internet-facing resources and two private subnets for Amazon RDS. The public route table reaches the Internet Gateway, while the private subnets do not expose the database directly to the Internet.
+
+![Cloud E-Wallet VPC resource map](/images/5-Workshop/5.1-Prerequisites/vpc-resource-map.png)
+
+<p style="text-align: center;"><em>Figure 5.2. Cloud E-Wallet VPC resource map across two Availability Zones.</em></p>
+
+## Result
+
+Every team member follows one deployment process without sharing secrets through source code or reports.

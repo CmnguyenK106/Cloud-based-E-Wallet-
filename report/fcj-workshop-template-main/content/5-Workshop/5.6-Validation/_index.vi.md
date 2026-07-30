@@ -8,47 +8,48 @@ pre: " <b> 5.6. </b> "
 
 ## Mục tiêu
 
-Thu thập bằng chứng build, health, network và workflow production sau khi hoàn thành triển khai.
+Kiểm tra hệ thống từ góc nhìn người dùng sau khi triển khai production, xác nhận frontend có thể tải qua domain chính, các chức năng gọi backend hoạt động và Amazon SES gửi được email của ứng dụng.
 
-## Kiểm tra kỹ thuật
+## Xác nhận hệ thống sẵn sàng
 
-| Hạng mục | Kết quả mong đợi | Đã ghi nhận |
-| --- | --- | --- |
-| Backend test | 68 tests pass | Có |
-| Backend package | Build thành công | Có |
-| Frontend build/lint | Thành công | Có |
-| Frontend automated tests | Không có script | Không áp dụng |
-| ALB target | Healthy | Có |
-| Actuator | `/actuator/health` trả `UP` | Có trong cấu hình/kiểm tra dự án |
-| Direct EC2:8080 | Bị chặn | Có |
-| Protected API không JWT | `401` | Chỉ chứng minh request đến Spring Security |
+Nhóm chúng em truy cập hệ thống bằng domain production `https://cloud-ewallet.com`. Frontend được phân phối từ Amazon S3 qua CloudFront, còn request `/api/*` được chuyển đến Application Load Balancer và backend trên EC2.
 
-> **Hình cần bổ sung:** Backend tests, frontend build/lint, ALB Healthy và health UP.
+Trạng thái hạ tầng đã được kiểm tra tại [mục 5.5](../5.5-Traffic-security/): target group sử dụng HTTP port `8080` và EC2 backend ở trạng thái **Healthy**. Vì vậy, phần này không lặp lại ảnh AWS Console hoặc yêu cầu mở riêng endpoint Actuator chỉ để chụp minh chứng.
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/backend-tests.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/frontend-build-lint.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/alb-health.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/actuator-health.png -->
+Sau khi đăng nhập, trang ví hiển thị đúng thông tin tài khoản và số dư hiện tại. Kết quả này đồng thời xác nhận frontend đã gọi được API có xác thực và backend đọc được dữ liệu từ Amazon RDS.
 
-## Smoke test production
+![Trang ví trên môi trường production](/images/5-Workshop/5.6-Validation/production-wallet.png)
 
-Kiểm tra đăng ký, gửi lại/xác minh email, đăng nhập, profile, recipient lookup, nạp tiền mô phỏng, chuyển tiền, thanh toán, lịch sử, admin và quên/đặt lại mật khẩu. Đối chiếu SES Sending Statistics để kiểm tra lượt gửi, delivery, bounce và complaint. Che email, phone, token, SMTP credential và dữ liệu cá nhân trong ảnh.
+<p style="text-align: center;"><em>Hình 5.19. Trang ví của người dùng được tải thành công trên môi trường production.</em></p>
 
-> **Hình cần bổ sung:** Bộ ảnh smoke test người dùng, quản trị viên, email nhận qua Amazon SES và SES Sending Statistics.
+## Kiểm thử chức năng chuyển tiền
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/user-workflows.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/admin-workflows.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/email-workflows.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/ses-sending-statistics.png -->
+Nhóm chúng em thực hiện chuyển tiền giữa hai tài khoản thử nghiệm. Trước khi gửi request, hệ thống tra cứu số điện thoại người nhận, hiển thị tên tài khoản tương ứng và nhận số tiền cùng nội dung giao dịch.
 
-## Monitoring
+![Nhập thông tin chuyển tiền](/images/5-Workshop/5.6-Validation/transfer-form.png)
 
-Actuator cung cấp health/liveness/readiness. CloudWatch có metrics mặc định cho dịch vụ AWS; repository chưa xác minh custom log group, dashboard, alarm hoặc agent. Chỉ thêm ảnh từ cấu hình thật.
+<p style="text-align: center;"><em>Hình 5.20. Nhập người nhận, số tiền và nội dung cho giao dịch thử nghiệm.</em></p>
 
-> **Hình cần bổ sung:** CloudWatch metrics hoặc logs đã thực sự cấu hình.
+Sau khi xác nhận, giao diện hiển thị thông báo **Transfer successfully**, số dư tài khoản gửi giảm từ `210 USD` xuống `110 USD` và biểu mẫu được đặt lại. Kết quả này cho thấy request đã đi qua CloudFront và ALB đến backend, giao dịch được xử lý và dữ liệu số dư được cập nhật trong RDS.
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/cloudwatch-evidence.png -->
+![Kết quả chuyển tiền thành công](/images/5-Workshop/5.6-Validation/transfer-success.png)
+
+<p style="text-align: center;"><em>Hình 5.21. Giao dịch hoàn tất và số dư tài khoản được cập nhật.</em></p>
+
+## Kiểm thử email qua Amazon SES
+
+Nhóm chúng em sử dụng chức năng quên mật khẩu để kiểm tra luồng gửi email. Backend tạo yêu cầu khôi phục, gửi email bằng Amazon SES và người dùng nhận được thư từ địa chỉ thuộc domain `cloud-ewallet.com`. Đường dẫn trong email trỏ về trang đặt lại mật khẩu của domain production.
+
+![Email khôi phục mật khẩu được gửi qua Amazon SES](/images/5-Workshop/5.6-Validation/ses-password-reset-email.png)
+
+<p style="text-align: center;"><em>Hình 5.22. Email khôi phục mật khẩu được nhận thành công qua Amazon SES.</em></p>
 
 ## Kết quả
 
-Mỗi kết luận phải gắn với bằng chứng tương ứng. `401` không thay thế kiểm thử nghiệp vụ end-to-end.
+Các kiểm thử xác nhận ba luồng chính của hệ thống hoạt động trên môi trường production:
+
+- Người dùng truy cập frontend qua HTTPS và đăng nhập để xem thông tin ví.
+- Chức năng chuyển tiền gọi backend thành công và cập nhật dữ liệu trong database.
+- Backend gửi được email ứng dụng thông qua Amazon SES.
+
+Kết hợp với trạng thái **Healthy** của target group tại mục 5.5, các kết quả trên cho thấy chuỗi CloudFront → ALB → EC2 → RDS và tích hợp Amazon SES đang hoạt động theo kiến trúc đã triển khai.

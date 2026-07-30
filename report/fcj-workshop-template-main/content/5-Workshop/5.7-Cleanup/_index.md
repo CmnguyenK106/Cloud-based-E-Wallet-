@@ -6,29 +6,19 @@ chapter: false
 pre: " <b> 5.7. </b> "
 ---
 
-## Objective
+## Cleanup steps
 
-Avoid post-demo cost without deleting required data or active resources. Never use bulk deletion with unverified IDs.
+Cleanup follows dependency order to prevent accidental data loss and avoid residual resources continuing to incur charges.
 
-## Cleanup order
+1. **Back up required data:** export required records and create a final Amazon RDS snapshot before deleting the database.
+2. **Clean up Amazon CloudFront:** remove alternate domain names when necessary, disable the distribution, wait for deployment to complete, and delete it.
+3. **Clean up Amazon S3:** delete all objects and object versions from the frontend bucket, then delete the bucket after CloudFront no longer uses it.
+4. **Delete the Application Load Balancer:** remove its listener, the ALB, and the backend target group.
+5. **Clean up Amazon EC2:** terminate the backend instance and review unused EBS volumes, snapshots, and Elastic IP addresses.
+6. **Delete Amazon RDS:** confirm that the final snapshot exists, then delete the DB instance and unused DB subnet group.
+7. **Delete network resources:** delete unreferenced security groups, followed by custom route tables, subnets, the Internet Gateway, and the VPC.
+8. **Clean up IAM:** detach policies and delete IAM roles or users dedicated to the project; deactivate and delete unused SES SMTP credentials.
+9. **Clean up Amazon SES and DNS:** remove the SES identity, DKIM, MAIL FROM, ACM validation, and Cloudflare DNS records when the domain is no longer used for the website or email.
+10. **Review costs:** check AWS Billing and Cost Explorer to confirm that no unexpected resources continue to incur charges.
 
-1. Back up the database and required evidence.
-2. If unused, disable and delete CloudFront.
-3. Delete verified S3 objects and bucket.
-4. Delete ALB, listener, and target group.
-5. Stop or terminate EC2. `stop` does not delete EBS; review EBS, snapshots, and Elastic IP separately.
-6. Delete RDS after deciding on a final snapshot; deletion may destroy data.
-7. Delete security groups after dependencies are gone.
-8. Delete subnets/VPC only after all network interfaces/resources are gone.
-9. Remove Cloudflare/SES verification and DKIM records, the SES identity, or SMTP credentials only when the domain and application no longer use email.
-10. Review AWS Billing/Cost Explorer after cleanup.
-
-> **Image required:** Resource inventory and Billing before/after cleanup.
-
-<!-- IMAGE_PATH: /images/5-Workshop/5.7-Cleanup/resource-inventory.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.7-Cleanup/billing-before.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.7-Cleanup/billing-after.png -->
-
-## Warnings
-
-CloudFront may take time to disable before deletion. Do not delete a Cloudflare zone used by another domain/email purpose. Snapshots, EBS, Elastic IP, and S3 can incur separate costs.
+Before each deletion, the team verifies the resource name, Region, and dependencies. CloudFront must be disabled before deletion; a stopped EC2 instance can still incur EBS charges; snapshots, Elastic IP addresses, and S3 data can also be billed separately.

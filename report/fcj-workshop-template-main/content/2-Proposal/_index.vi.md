@@ -22,7 +22,7 @@ Bên cạnh đó, việc triển khai một ứng dụng ví điện tử đòi 
 
 #### *Giải pháp*
 
-Để giải quyết những bất cập của thanh toán truyền thống, Nền tảng **Cloud E-Wallet** tận dụng các dịch vụ AWS để đảm bảo tính sẵn sàng cao và khả năng mở rộng: **Amazon EC2** và **Application Load Balancer (ALB)** đóng vai trò xử lý các giao dịch một cách mượt mà; **Amazon RDS** (MySQL) được sử dụng để lưu trữ dữ liệu an toàn, áp dụng database transaction nhằm đảm bảo tính toàn vẹn của số dư; **Amazon S3** và **CloudFront** cung cấp giao diện người dùng tốc độ cao. Cuối cùng, hệ thống tích hợp **Amazon SES** cho quy trình gửi email tự động xác thực tài khoản, mang đến trải nghiệm liền mạch và bảo mật như các ứng dụng tài chính thực tế.
+Để giải quyết những bất cập của thanh toán truyền thống, nền tảng **Cloud E-Wallet** sử dụng các dịch vụ AWS để triển khai hệ thống: **Amazon EC2** và **Application Load Balancer (ALB)** đóng vai trò xử lý các giao dịch một cách mượt mà; **Amazon RDS** (MySQL) được sử dụng để lưu trữ dữ liệu an toàn, áp dụng database transaction nhằm đảm bảo tính toàn vẹn của số dư; **Amazon S3** và **CloudFront** cung cấp giao diện người dùng tốc độ cao. Cuối cùng, hệ thống tích hợp **Amazon SES** cho quy trình gửi email tự động xác thực tài khoản, mang đến trải nghiệm liền mạch và bảo mật như các ứng dụng tài chính thực tế.
 
 ### 3. Kiến trúc giải pháp
 
@@ -49,7 +49,7 @@ Mô tả luồng:
 | EC2 | Chạy Spring Boot trong Docker |
 | RDS MySQL | Lưu dữ liệu trong private subnet |
 | Amazon SES SMTP | Gửi email xác minh và đặt lại mật khẩu; dùng SMTP `587`, xác thực và STARTTLS |
-| CloudWatch | Theo dõi metrics AWS; log/alarm tùy chỉnh chỉ ghi nhận khi có cấu hình thực tế |
+| CloudWatch | Theo dõi metrics của các dịch vụ AWS |
 
 ### 3.3. Thiết kế thành phần
 
@@ -127,7 +127,7 @@ Chi phí dưới đây là **ước tính**, không phải hóa đơn thực t�
 | Phí khởi tạo dịch vụ AWS | **0,00 USD** |
 | **Tổng chi phí ban đầu, thanh toán một lần** | **10,98 USD** |
 
-Tên miền được ghi nhận là khoản mua ban đầu theo số tiền nhóm đã thanh toán và **không được phân bổ vào chi phí duy trì hằng tháng** trong bảng dưới đây. Phí gia hạn trong tương lai chưa được tính vì chưa có số liệu gia hạn thực tế.
+Tên miền được ghi nhận là khoản mua ban đầu theo số tiền nhóm đã thanh toán và **không được phân bổ vào chi phí duy trì hằng tháng** trong bảng dưới đây.
 
 ### Giả định sử dụng
 
@@ -162,11 +162,7 @@ Tên miền được ghi nhận là khoản mua ban đầu theo số tiền nhó
 - **Trung bình – 57,11 USD/tháng:** Giữ nguyên cấu hình compute/database nhưng có mức sử dụng thường xuyên hơn: khoảng 5 GB S3, 30 GB CloudFront, 3.000 email SES, 1 GB CloudWatch Logs và trung bình 0,3 LCU. Đây là kịch bản phù hợp cho nhóm dùng thử và trình diễn định kỳ.
 - **Tối đa giả định – 73,32 USD/tháng:** Vẫn giữ một EC2 và một RDS kích thước nhỏ nhưng giả định lưu lượng tăng đến 20 GB S3, 100 GB CloudFront, 10.000 email SES, 5 GB log và trung bình 1 LCU. Nếu phải nâng loại EC2/RDS, thêm target, Multi-AZ, NAT Gateway, WAF hoặc vượt các ngưỡng này, chi phí thực tế có thể cao hơn mức trên.
 
-Giá AWS thay đổi theo thời điểm, Region, loại tài khoản và mức sử dụng thực tế. Trước khi vận hành lâu dài, nhóm cần nhập cấu hình thật vào AWS Pricing Calculator và đối chiếu Billing/Cost Explorer. Tham khảo: [AWS EC2 Pricing](https://aws.amazon.com/ec2/pricing/on-demand/), [Amazon RDS for MySQL Pricing](https://aws.amazon.com/rds/mysql/pricing/), [Elastic Load Balancing Pricing](https://aws.amazon.com/elasticloadbalancing/pricing/), [Amazon CloudFront Pricing](https://aws.amazon.com/cloudfront/pricing/), [Amazon S3 Pricing](https://aws.amazon.com/s3/pricing/) và [Amazon SES Pricing](https://aws.amazon.com/ses/pricing/).
-> **Hình cần bổ sung:** Kết quả AWS Pricing Calculator hoặc Billing đã che thông tin nhạy cảm.
-
-<!-- IMAGE_PATH: /images/2-Proposal/aws-cost-estimate.png -->
-<!-- Sau khi thêm file, bỏ comment dòng Markdown sau: ![Ước tính chi phí AWS](/images/2-Proposal/aws-cost-estimate.png) -->
+Giá AWS thay đổi theo thời điểm, Region, loại tài khoản và mức sử dụng thực tế. Tham khảo: [AWS EC2 Pricing](https://aws.amazon.com/ec2/pricing/on-demand/), [Amazon RDS for MySQL Pricing](https://aws.amazon.com/rds/mysql/pricing/), [Elastic Load Balancing Pricing](https://aws.amazon.com/elasticloadbalancing/pricing/), [Amazon CloudFront Pricing](https://aws.amazon.com/cloudfront/pricing/), [Amazon S3 Pricing](https://aws.amazon.com/s3/pricing/) và [Amazon SES Pricing](https://aws.amazon.com/ses/pricing/).
 
 ## 8. Đánh giá rủi ro và chiến lược giảm thiểu
 
@@ -175,15 +171,15 @@ Giá AWS thay đổi theo thời điểm, Region, loại tài khoản và mức 
 | **Lộ lọt dữ liệu nhạy cảm (Credentials)** | Rất Cao | Thấp | - Loại bỏ toàn bộ thông tin nhạy cảm (mật khẩu DB, JWT secret, AWS keys) ra khỏi mã nguồn.<br>- Sử dụng file `.env` cục bộ và tính năng quản lý biến môi trường của nền tảng khi triển khai lên mây. |
 | **Sai lệch dữ liệu giao dịch & số dư** | Rất Cao | Trung bình | - Áp dụng **Database Transaction** (ACID) cho mọi nghiệp vụ nạp/chuyển tiền.<br>- Sử dụng cơ chế khóa dòng (Row-level locking) trong MySQL để tránh lỗi ghi đè khi có nhiều giao dịch đồng thời (Race condition). |
 | **Gián đoạn dịch vụ Backend (Downtime)** | Cao | Trung bình | - Thiết lập cơ chế kiểm tra sức khỏe liên tục (**Health check**) thông qua ALB để loại bỏ các node lỗi.<br>- Cấu hình Docker tự động khởi động lại container khi có sự cố crash ứng dụng. |
-| **Phát sinh chi phí AWS ngoài kiểm soát** | Trung bình | Trung bình | - Thường xuyên theo dõi dashboard **AWS Billing & Cost Explorer**.<br>- Thiết lập cảnh báo ngân sách (AWS Budgets) qua email nếu chi phí vượt quá giới hạn $5/tháng.<br>- Chủ động xóa (cleanup) tài nguyên không sử dụng sau khi kết thúc dự án. |
-| **Gián đoạn tính năng gửi Email (SES)** | Trung bình | Cao | - Hoàn tất cấu hình các bản ghi DNS (DKIM, SPF) trên Cloudflare để tránh việc email bị đánh dấu là spam.<br>- Theo dõi giới hạn gửi (sandbox limits) và chuẩn bị phương án dự phòng chuyển sang dịch vụ email khác nếu AWS SES từ chối cấp quyền gửi ra ngoài (production access). |
+| **Phát sinh chi phí AWS ngoài kiểm soát** | Trung bình | Trung bình | - Thường xuyên theo dõi dashboard **AWS Billing & Cost Explorer**.<br>- Chủ động xóa (cleanup) tài nguyên không sử dụng sau khi kết thúc dự án. |
+| **Gián đoạn tính năng gửi Email (SES)** | Trung bình | Cao | - Hoàn tất cấu hình các bản ghi DNS (DKIM, SPF) trên Cloudflare để tránh việc email bị đánh dấu là spam.<br>- Theo dõi bounce, complaint và hạn mức gửi trong Amazon SES. |
 
-## 9. Kết quả kì vọng
+## 9. Kết quả đạt được
 
-Dự án Cloud E-Wallet khi hoàn thành được kỳ vọng sẽ giải quyết triệt để các bất tiện của giao dịch tiền mặt truyền thống thông qua các giá trị chức năng cụ thể:
+Dự án Cloud E-Wallet mang lại các giá trị chức năng cụ thể:
 
 - **Đối với người dùng cuối:** Mang đến một nền tảng ví điện tử trực tuyến tiện lợi, an toàn. Người dùng có thể dễ dàng nạp tiền (mô phỏng), thực hiện các giao dịch chuyển khoản nội bộ nhanh chóng và thanh toán các hóa đơn dịch vụ (điện, nước, internet,...) chỉ với vài thao tác. Tất cả lịch sử chi tiêu đều được lưu trữ và thống kê minh bạch giúp quản lý tài chính cá nhân hiệu quả hơn.
 - **Đối với quản trị viên:** Cung cấp một bảng điều khiển trung tâm (Admin Dashboard) trực quan, cho phép quản lý chặt chẽ tài khoản người dùng, theo dõi toàn cảnh dòng tiền mô phỏng trong hệ thống, cũng như giám sát và cấu hình linh hoạt danh mục các dịch vụ thanh toán.
-- **Về mặt hệ thống:** Một nền tảng hoạt động trơn tru, bảo mật cao và luôn sẵn sàng 24/7 nhờ sức mạnh của kiến trúc đám mây AWS. Trải nghiệm người dùng được tối ưu hóa với tốc độ tải trang nhanh, xác thực an toàn bằng mã hóa và các quy trình tự động hóa vận hành mượt mà.
+- **Về mặt hệ thống:** Một nền tảng được triển khai trên AWS với HTTPS, phân tách mạng và kiểm soát truy cập bằng Security Group. Trải nghiệm người dùng được tối ưu hóa với tốc độ tải trang nhanh, xác thực an toàn bằng mã hóa và các quy trình tự động hóa vận hành mượt mà.
 
 

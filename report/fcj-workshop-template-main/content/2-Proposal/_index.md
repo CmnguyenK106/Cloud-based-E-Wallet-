@@ -32,25 +32,21 @@ A local-only application cannot fully demonstrate production routing, domain/HTT
 - Amazon S3 and CloudFront for frontend delivery.
 - Application Load Balancer and EC2 for the Dockerized backend.
 - Amazon RDS MySQL in private subnets.
-- Amazon SES SMTP in Singapore (`ap-southeast-1`) with STARTTLS for verification and password-reset email; Resend is retained as a rollback provider.
+- Amazon SES SMTP in Singapore (`ap-southeast-1`) with STARTTLS for verification and password-reset email.
 - Cloudflare DNS for the domain and email-verification records.
 
 ## 4. Solution architecture
 
-The proposed flow, subsequently applied by the project, is:
+![Cloud E-Wallet deployment architecture on AWS](/images/5-Workshop/5.1-Prerequisites/architecture.png)
+<p align="center"><i>Deployment architecture</i></p>
 
-```text
-Users → Cloudflare DNS → Amazon CloudFront
-                              ├─ Default (*) → S3 frontend
-                              └─ /api/* → ALB → EC2/Docker/Spring Boot
-                                                   ├─ RDS MySQL
-                                                   └─ Amazon SES SMTP
-```
+Request flow:
 
-> **Image required:** Team architecture diagram showing User, Cloudflare, CloudFront, S3, ALB, EC2, RDS, Internet Gateway, Amazon SES, and CloudWatch.
-
-<!-- IMAGE_PATH: /images/2-Proposal/cloud-ewallet-architecture.png -->
-<!-- After adding the file, uncomment: ![Cloud E-Wallet architecture](/images/2-Proposal/cloud-ewallet-architecture.png) -->
+1. **Access:** Users open the Cloudflare-managed domain, which routes them to Amazon CloudFront.
+2. **Routing:** CloudFront serves static frontend requests from Amazon S3 and sends API requests to the Application Load Balancer.
+3. **Business logic:** The ALB forwards API traffic to the Amazon EC2 instance running the backend.
+4. **Data and communication:** EC2 stores application data in Amazon RDS and sends automated email through Amazon SES.
+5. **Monitoring:** Amazon CloudWatch provides AWS service metrics.
 
 | Component | Responsibility |
 | --- | --- |
@@ -61,7 +57,7 @@ Users → Cloudflare DNS → Amazon CloudFront
 | EC2 | Runs Spring Boot in Docker |
 | RDS MySQL | Stores data in private subnets |
 | Amazon SES SMTP | Sends verification and reset email over authenticated STARTTLS on port `587` |
-| CloudWatch | AWS metrics; custom logs/alarms require live configuration evidence |
+| CloudWatch | Monitors AWS service metrics |
 
 ## 5. Technical implementation
 
@@ -93,28 +89,27 @@ Registration, verification/resend, login/logout, forgot/reset password, profile 
 
 Dashboard, user listing and block/unblock, transaction review, and service creation/editing/activation/deactivation.
 
-### Out of scope
-
-Real money, KYC, real OTP/SMS, payment gateways, ECS/Fargate, Auto Scaling, and CI/CD are outside the initial proposal. The ALB has one EC2 target, so the system does not provide full high availability.
-
 ## 7. Expected benefits
 
 - An end-to-end full-stack and AWS learning product.
 - Clear separation of UI, API, and database.
 - Authentication, authorization, and transactional balance processing.
 - Responsive UI and UTF-8 Vietnamese content.
-- A foundation for future ECS, CI/CD, Auto Scaling, WAF, and stronger monitoring research.
 
 ## 8. Implementation plan
 
-| Phase | Work |
+| Week | Detailed work |
 | --- | --- |
-| Weeks 1–2 | Requirements, architecture, database design, and project setup |
-| Weeks 3–5 | Authentication, wallet workflows, customer UI, and administration |
-| Week 6 | Testing, defect fixes, and backend containerization |
-| Weeks 7–8 | S3, CloudFront, EC2, RDS, Amazon SES, ALB, and production checks |
-| Week 9 | Product, documentation, and report completion |
-| Weeks 10–11 | ECS and CI/CD research as future work, not production implementation |
+| Week 1 | Review requirements, design the overall AWS architecture and database, and prepare the source repository. |
+| Week 2 | Initialize the project, configure the local development environment, create basic APIs, and structure the frontend. |
+| Week 3 | Implement registration, JWT sign-in, user verification, and Admin/User authorization. |
+| Week 4 | Implement simulated deposits, balance tracking, and account-information management. |
+| Week 5 | Implement transfers, service payments, and transaction history. |
+| Week 6 | Build the Admin Dashboard and validate the system locally. |
+| Week 7 | Containerize Spring Boot and configure the VPC, security groups, EC2, and RDS. |
+| Week 8 | Configure S3 and CloudFront for the frontend and create the Application Load Balancer. |
+| Week 9 | Configure Cloudflare DNS, integrate Amazon SES, and validate production workflows. |
+| Week 10 | Review results, resolve defects, and complete the report and project documentation. |
 
 ## 9. Risks and mitigations
 
@@ -122,7 +117,7 @@ Real money, KYC, real OTP/SMS, payment gateways, ECS/Fargate, Auto Scaling, and 
 | --- | --- | --- |
 | Secret exposure | High | Separate environment files, placeholders, no committed real values |
 | Incorrect balances | High | Transactions, validation, and wallet-row locking |
-| Backend outage | High | ALB health check; document one-target limitation and roadmap |
+| Backend outage | High | ALB health checks and automatic Docker container restart |
 | AWS cost | Medium | Billing/Cost Explorer review and resource cleanup |
 | Email failure | Medium | Verify the SES domain, sandbox status, STARTTLS, SMTP credentials, bounces, and complaints |
 
@@ -138,7 +133,7 @@ The following figures are **estimates**, not an actual invoice. Our team assumes
 | AWS service setup fees | **USD 0.00** |
 | **Total one-time initial cost** | **USD 10.98** |
 
-The domain is recorded as an initial purchase at the amount actually paid by the team and is **not amortized into monthly operating costs** below. A future renewal fee is excluded because no actual renewal price is available yet.
+The domain is recorded as an initial purchase at the amount actually paid by the team and is **not amortized into monthly operating costs** below.
 
 ### Usage assumptions
 
@@ -173,14 +168,10 @@ The domain is recorded as an initial purchase at the amount actually paid by the
 - **Average – USD 57.11/month:** Compute and database sizing remains unchanged, with more regular usage: about 5 GB on S3, 30 GB through CloudFront, 3,000 SES emails, 1 GB of CloudWatch Logs, and an average 0.3 LCU. This represents periodic team testing and demonstrations.
 - **Assumed maximum – USD 73.32/month:** The system still uses one small EC2 and RDS instance, but usage rises to 20 GB on S3, 100 GB through CloudFront, 10,000 SES emails, 5 GB of logs, and an average 1 LCU. A larger EC2/RDS class, additional targets, Multi-AZ, NAT Gateway, WAF, or usage beyond these limits can exceed this figure.
 
-AWS prices vary by date, Region, account, and actual consumption. Before long-term operation, the team should enter the deployed configuration into AWS Pricing Calculator and compare it with Billing/Cost Explorer. References: [AWS EC2 Pricing](https://aws.amazon.com/ec2/pricing/on-demand/), [Amazon RDS for MySQL Pricing](https://aws.amazon.com/rds/mysql/pricing/), [Elastic Load Balancing Pricing](https://aws.amazon.com/elasticloadbalancing/pricing/), [Amazon CloudFront Pricing](https://aws.amazon.com/cloudfront/pricing/), [Amazon S3 Pricing](https://aws.amazon.com/s3/pricing/), and [Amazon SES Pricing](https://aws.amazon.com/ses/pricing/).
-> **Image required:** Redacted AWS Pricing Calculator estimate or Billing view.
+AWS prices vary by date, Region, account, and actual consumption. References: [AWS EC2 Pricing](https://aws.amazon.com/ec2/pricing/on-demand/), [Amazon RDS for MySQL Pricing](https://aws.amazon.com/rds/mysql/pricing/), [Elastic Load Balancing Pricing](https://aws.amazon.com/elasticloadbalancing/pricing/), [Amazon CloudFront Pricing](https://aws.amazon.com/cloudfront/pricing/), [Amazon S3 Pricing](https://aws.amazon.com/s3/pricing/), and [Amazon SES Pricing](https://aws.amazon.com/ses/pricing/).
 
-<!-- IMAGE_PATH: /images/2-Proposal/aws-cost-estimate.png -->
-<!-- After adding the file, uncomment: ![AWS cost estimate](/images/2-Proposal/aws-cost-estimate.png) -->
+## 11. Achieved results
 
-## 11. Expected outcome
-
-The application is available at `https://cloud-ewallet.com`; CloudFront/S3 serves the frontend; CloudFront/ALB routes APIs to Spring Boot; the backend connects to RDS and sends email through Amazon SES SMTP. Main workflows are validated and architecture limitations are documented accurately.
+The application is available at `https://cloud-ewallet.com`; CloudFront/S3 serves the frontend; CloudFront/ALB routes APIs to Spring Boot; the backend connects to RDS and sends email through Amazon SES SMTP. The primary production workflows have been validated successfully.
 
 

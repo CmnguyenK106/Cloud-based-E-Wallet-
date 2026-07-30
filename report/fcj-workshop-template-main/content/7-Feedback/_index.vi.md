@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Chia sẻ, đóng góp ý kiến"
 date: 2024-01-01
 weight: 7
@@ -12,7 +12,7 @@ pre: " <b> 7. </b> "
 ### Đánh giá chung
 
 **1. Môi trường làm việc**  
-Môi trường làm việc rất thân thiện và cởi mở. Các thành viên trong FCAJ luôn sẵn sàng hỗ trợ khi em gặp khó khăn, kể cả ngoài giờ làm việc. Không gian làm việc gọn gàng, thoải mái, giúp em tập trung tốt hơn. Tuy nhiên, em nghĩ có thể bổ sung thêm một số buổi giao lưu hoặc team bonding để mọi người hiểu nhau hơn.
+Môi trường làm việc rất thân thiện và cởi mở. Các thành viên trong FCAJ luôn sẵn sàng hỗ trợ khi em gặp khó khăn, kể cả ngoài giờ làm việc. Không gian làm việc gọn gàng, thoải mái, giúp em tập trung tốt hơn.
 
 **2. Sự hỗ trợ của mentor / team admin**  
 Mentor hướng dẫn rất chi tiết, giải thích rõ ràng khi em chưa hiểu và luôn khuyến khích em đặt câu hỏi. Team admin hỗ trợ các thủ tục, tài liệu và tạo điều kiện để em làm việc thuận lợi. Em đánh giá cao việc mentor cho phép em thử và tự xử lý vấn đề thay vì chỉ đưa đáp án.
@@ -28,15 +28,3 @@ Văn hóa công ty rất tích cực: mọi người tôn trọng lẫn nhau, l�
 
 **6. Chính sách / phúc lợi cho thực tập sinh**  
 Công ty có hỗ trợ phụ cấp thực tập và tạo điều kiện về thời gian linh hoạt khi cần thiết. Ngoài ra, việc được tham gia các buổi đào tạo nội bộ là một điểm cộng lớn.
-
-
-### Một số câu hỏi khác
-- Điều bạn **hài lòng nhất** trong thời gian thực tập?  
-- Điều bạn nghĩ công ty **cần cải thiện** cho các thực tập sinh sau?  
-- Nếu giới thiệu cho bạn bè, bạn có **khuyên họ thực tập ở đây không**? Vì sao?  
-
-
-### Đề xuất & mong muốn
-- Bạn có đề xuất gì để cải thiện trải nghiệm trong kỳ thực tập?  
-- Bạn có muốn tiếp tục chương trình này trong tương lai?
-- Góp ý khác (tự do chia sẻ):

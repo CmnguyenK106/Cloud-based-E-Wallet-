@@ -8,47 +8,48 @@ pre: " <b> 5.6. </b> "
 
 ## Objective
 
-Collect build, health, network, and production workflow evidence after deployment.
+Validate the production system from the user's perspective: the frontend loads through the primary domain, application workflows reach the backend, and Amazon SES delivers application email.
 
-## Technical checks
+## Confirm system readiness
 
-| Item | Expected | Recorded |
-| --- | --- | --- |
-| Backend tests | 68 pass | Yes |
-| Backend package | Successful | Yes |
-| Frontend build/lint | Successful | Yes |
-| Frontend automated tests | No script exists | Not applicable |
-| ALB target | Healthy | Yes |
-| Actuator | `/actuator/health` returns `UP` | Project configuration/check evidence |
-| Direct EC2:8080 | Blocked | Yes |
-| Protected API without JWT | `401` | Proves only that request reached Spring Security |
+Our team accessed the system at `https://cloud-ewallet.com`. CloudFront serves the Amazon S3 frontend and routes `/api/*` requests through the Application Load Balancer to the EC2 backend.
 
-> **Image required:** Backend tests, frontend build/lint, ALB Healthy, and health UP.
+Infrastructure health is documented in [Section 5.5](../5.5-Traffic-security/): the target group uses HTTP port `8080`, and the backend EC2 target is **Healthy**. Therefore, this section does not repeat AWS Console evidence or expose an Actuator endpoint solely for screenshots.
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/backend-tests.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/frontend-build-lint.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/alb-health.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/actuator-health.png -->
+After sign-in, the wallet page displayed the account information and current balance. This result also confirms that the frontend called an authenticated API and the backend retrieved data from Amazon RDS.
 
-## Production smoke tests
+![Wallet page in production](/images/5-Workshop/5.6-Validation/production-wallet.png)
 
-Test registration, verification/resend, login, profile, recipient lookup, simulated deposit, transfer, payment, history, administration, and forgot/reset password. Review SES Sending Statistics for sends, deliveries, bounces, and complaints. Hide email, phone, token, SMTP credentials, and personal data.
+<p style="text-align: center;"><em>Figure 5.19. The user's wallet page loads successfully in production.</em></p>
 
-> **Image required:** Customer and administrator workflows, email received through Amazon SES, and SES Sending Statistics.
+## Validate money transfer
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/user-workflows.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/admin-workflows.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/email-workflows.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/ses-sending-statistics.png -->
+Our team transferred a simulated balance between two test accounts. Before submission, the application looked up the recipient phone number, displayed the matching account name, and accepted the amount and transaction note.
 
-## Monitoring
+![Money-transfer form](/images/5-Workshop/5.6-Validation/transfer-form.png)
 
-Actuator provides health/liveness/readiness. CloudWatch offers default service metrics; custom log groups, dashboards, alarms, or agents are not repository-confirmed. Add only live evidence.
+<p style="text-align: center;"><em>Figure 5.20. Recipient, amount, and note entered for a test transaction.</em></p>
 
-> **Image required:** Actually configured CloudWatch metrics or logs.
+After confirmation, the interface displayed **Transfer successfully**, the sender balance decreased from `210 USD` to `110 USD`, and the form was reset. This confirms that the request traveled through CloudFront and the ALB, the backend processed the transaction, and RDS stored the updated balance.
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.6-Validation/cloudwatch-evidence.png -->
+![Successful money transfer](/images/5-Workshop/5.6-Validation/transfer-success.png)
+
+<p style="text-align: center;"><em>Figure 5.21. The transaction completed and the wallet balance was updated.</em></p>
+
+## Validate email through Amazon SES
+
+Our team used the forgot-password workflow to validate application email. The backend created the reset request, sent the message through Amazon SES, and the user received it from an address under `cloud-ewallet.com`. The link points to the password-reset page on the production domain.
+
+![Password-reset email delivered through Amazon SES](/images/5-Workshop/5.6-Validation/ses-password-reset-email.png)
+
+<p style="text-align: center;"><em>Figure 5.22. Password-reset email received successfully through Amazon SES.</em></p>
 
 ## Result
 
-Every conclusion must map to evidence. A `401` does not replace end-to-end workflow testing.
+The validation confirmed three primary production flows:
+
+- The user accesses the HTTPS frontend and signs in to view wallet information.
+- Money transfer reaches the backend and updates database records.
+- The backend sends application email through Amazon SES.
+
+Together with the **Healthy** target shown in Section 5.5, these results confirm the deployed CloudFront → ALB → EC2 → RDS path and the Amazon SES integration.

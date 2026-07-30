@@ -21,95 +21,21 @@ Chuẩn bị đầy đủ công cụ, source, tài khoản và cấu hình trư�
 | AWS account | Đăng nhập Console | Phân quyền phù hợp cho S3, CloudFront, EC2, ALB, RDS và SES |
 | Cloudflare | Kiểm tra zone | Quản lý `cloud-ewallet.com` và các record xác minh Amazon SES |
 
-> **Hình cần bổ sung:** Terminal kiểm tra phiên bản công cụ.
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.1-Prerequisites/tool-versions.png -->
 
-> **Hình cần bổ sung:** Cây thư mục source, không hiển thị file môi trường thật.
-
-<!-- IMAGE_PATH: /images/5-Workshop/5.1-Prerequisites/source-structure.png -->
 
 ## Phân quyền IAM
 
-Trong trường hợp phân quyền riêng cho người triển khai, có thể sử dụng IAM user hoặc role thay vì root account. Policy tham khảo dưới đây bao gồm các quyền cần thiết cho những công việc thường xuyên của dự án: cập nhật frontend trên S3, tạo CloudFront invalidation, xem trạng thái EC2/ALB/RDS, kiểm tra CloudWatch và gửi/kiểm tra email bằng Amazon SES.
+Dự án sử dụng hai IAM user với mục đích riêng biệt, tránh sử dụng root account cho các công việc triển khai hằng ngày:
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "UpdateFrontendBucket",
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket",
-        "s3:GetBucketLocation"
-      ],
-      "Resource": "arn:aws:s3:::<FRONTEND_BUCKET_NAME>"
-    },
-    {
-      "Sid": "ManageFrontendObjects",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject"
-      ],
-      "Resource": "arn:aws:s3:::<FRONTEND_BUCKET_NAME>/*"
-    },
-    {
-      "Sid": "RefreshCloudFront",
-      "Effect": "Allow",
-      "Action": [
-        "cloudfront:GetDistribution",
-        "cloudfront:GetDistributionConfig",
-        "cloudfront:CreateInvalidation"
-      ],
-      "Resource": "arn:aws:cloudfront::<AWS_ACCOUNT_ID>:distribution/<DISTRIBUTION_ID>"
-    },
-    {
-      "Sid": "InspectRuntimeResources",
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeSecurityGroups",
-        "elasticloadbalancing:DescribeLoadBalancers",
-        "elasticloadbalancing:DescribeListeners",
-        "elasticloadbalancing:DescribeTargetGroups",
-        "elasticloadbalancing:DescribeTargetHealth",
-        "rds:DescribeDBInstances",
-        "rds:DescribeDBSubnetGroups",
-        "cloudwatch:ListMetrics",
-        "cloudwatch:GetMetricData",
-        "cloudwatch:GetMetricStatistics"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "SendFromProjectIdentity",
-      "Effect": "Allow",
-      "Action": [
-        "ses:SendEmail",
-        "ses:SendRawEmail",
-        "sesv2:GetEmailIdentity"
-      ],
-      "Resource": "arn:aws:ses:ap-southeast-1:<AWS_ACCOUNT_ID>:identity/cloud-ewallet.com"
-    },
-    {
-      "Sid": "InspectSESAccount",
-      "Effect": "Allow",
-      "Action": [
-        "ses:GetSendQuota",
-        "ses:GetSendStatistics",
-        "sesv2:GetAccount"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
+| IAM user | Hình thức truy cập | Vai trò trong dự án |
+| --- | --- | --- |
+| `khoi_admin` | Đăng nhập AWS Management Console | Quản lý các tài nguyên S3, CloudFront, EC2, Application Load Balancer, RDS, SES và CloudWatch. User nhận `AdministratorAccess` thông qua `admin-group` trong môi trường thực tập. |
+| `ses-smtp-user-cloud-ewallet` | Programmatic access bằng SES SMTP credentials; không dùng để đăng nhập Console | Cho phép Spring Boot backend xác thực với Amazon SES SMTP và gửi email xác minh tài khoản hoặc đặt lại mật khẩu. User này không dùng để build hoặc quản trị hạ tầng. |
 
-Các giá trị `<FRONTEND_BUCKET_NAME>`, `<AWS_ACCOUNT_ID>` và `<DISTRIBUTION_ID>` phải được thay bằng ID thật trước khi tạo policy. Những quyền `Describe`, CloudWatch và API quota của SES không hỗ trợ giới hạn theo ARN nên cần `Resource: "*"`. Quyền tạo/xóa VPC, EC2, ALB hoặc RDS không đưa vào policy vận hành này; nếu cần dựng hoặc dọn toàn bộ hạ tầng, nhóm sử dụng một role triển khai riêng có thời hạn và chỉ cấp thêm quyền đúng với bước đang thực hiện.
+`khoi_admin` có phạm vi quyền rộng để phục vụ quá trình thực hành và triển khai nhiều dịch vụ AWS. Với môi trường production dài hạn, quyền quản trị nên được thu hẹp theo nguyên tắc đặc quyền tối thiểu và tài khoản đăng nhập Console nên bật MFA. Credential của `ses-smtp-user-cloud-ewallet` chỉ được lưu trong file môi trường trên EC2, không đưa vào source, ảnh chụp hoặc báo cáo.
 
+![Danh sách IAM user của dự án](/images/5-Workshop/5.1-Prerequisites/IAM_USER.png)
 
 ## Chuẩn bị cấu hình môi trường
 
@@ -184,6 +110,27 @@ File môi trường thật chỉ được lưu trên máy triển khai và khôn
 - File `/home/ec2-user/ewallet-backend.env` đã được tạo trực tiếp trên EC2 và được giới hạn quyền truy cập.
 - Tài khoản AWS có các quyền cần thiết theo nguyên tắc đặc quyền tối thiểu.
 - Nhóm đã thống nhất Region Singapore (`ap-southeast-1`), quy tắc đặt tên và danh sách tài nguyên cần triển khai.
+
+## Thiết lập VPC
+
+Nhóm chúng em tạo VPC riêng `ewallet-vpc` tại Region Singapore (`ap-southeast-1`) với IPv4 CIDR `10.0.0.0/16`. VPC riêng giúp tách tài nguyên của dự án khỏi default VPC và kiểm soát rõ luồng mạng giữa Application Load Balancer, EC2 backend và Amazon RDS.
+
+VPC được chia thành bốn subnet trên hai Availability Zone:
+
+| Availability Zone | Public subnet | Private subnet |
+| --- | --- | --- |
+| `ap-southeast-1a` | `ewallet-subnet-public1-ap-southeast-1a` | `ewallet-subnet-private1-ap-southeast-1a` |
+| `ap-southeast-1b` | `ewallet-subnet-public2-ap-southeast-1b` | `ewallet-subnet-private2-ap-southeast-1b` |
+
+Hai public subnet được liên kết với public route table và có route ra Internet thông qua `ewallet-igw`. Các subnet này dành cho những thành phần cần nhận traffic từ bên ngoài, gồm Application Load Balancer và EC2 backend trong phạm vi triển khai hiện tại.
+
+Hai private subnet sử dụng route table riêng và được dành cho Amazon RDS MySQL. RDS không bật public access; kết nối database chỉ được cho phép từ Security Group của backend trên port `3306`. VPC cũng bật **DNS resolution** và **DNS hostnames** để các tài nguyên phân giải được endpoint và hostname cần thiết.
+
+![Resource map của VPC Cloud E-Wallet](/images/5-Workshop/5.1-Prerequisites/vpc-resource-map.png)
+
+<p style="text-align: center;"><em>Hình 5.2. Resource map của VPC Cloud E-Wallet trên hai Availability Zone.</em></p>
+
+Resource map thể hiện đầy đủ VPC, bốn subnet, các route table và Internet Gateway nên được sử dụng làm hình tổng quan cho phần này. Các cấu hình chi tiết của DB subnet group, Security Group và Application Load Balancer được trình bày trong các bước triển khai tương ứng.
 
 ## Kết quả mong đợi
 

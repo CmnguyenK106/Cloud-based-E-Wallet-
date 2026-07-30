@@ -8,54 +8,88 @@ pre: " <b> 5.5. </b> "
 
 ## Objective
 
-Place the backend behind the ALB, route `/api/*` through CloudFront, and restrict networking along ALB → EC2 → RDS.
+Complete the request path from users to the frontend and backend while restricting network access along CloudFront → Application Load Balancer → EC2 → Amazon RDS.
 
-## Step 1: Create the target group
+## Configure the target group
 
-Create a port-`8080` target group, register EC2, and use `/actuator/health` for health checks.
+Our team created the backend target group with these settings:
 
-> **Image required:** Port-8080 target group with a Healthy target.
+- Target type: EC2 instance.
+- Protocol: HTTP.
+- Port: `8080`.
+- Health check path: `/actuator/health`.
+- The backend EC2 instance is registered as the target.
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.5-Traffic-security/target-group-healthy.png -->
+The ALB forwards traffic to EC2 only after the health check succeeds and the target becomes **Healthy**.
 
-## Step 2: Create the Application Load Balancer
+![Healthy backend Target Group](/images/5-Workshop/5.5-Traffic-security/target-group-healthy.png)
 
-The ALB is internet-facing with an HTTP `80` listener forwarding to the target group. Its security group accepts required public HTTP traffic for the current design.
+<p style="text-align: center;"><em>Figure 5.15. The target group uses HTTP port 8080 and the backend EC2 target is Healthy.</em></p>
 
-> **Image required:** HTTP-80 listener and ALB security group.
+## Configure the Application Load Balancer
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.5-Traffic-security/alb-listener.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.5-Traffic-security/alb-security-group.png -->
+The internet-facing Application Load Balancer runs in the public subnets of `ewallet-vpc`. Its HTTP listener on port `80` forwards requests to backend target-group port `8080`.
 
-## Step 3: Restrict EC2 and RDS
+The browser connects to CloudFront over HTTPS. CloudFront connects to the ALB origin, and the ALB forwards the request to the Spring Boot container on EC2.
 
-- EC2 `8080` only from the ALB security group.
-- SSH `22` only from administrator `/32`.
-- EC2 `80`/`443` closed; direct public EC2:8080 blocked.
-- RDS `3306` only from the EC2 security group.
+![Application Load Balancer details and listener](/images/5-Workshop/5.5-Traffic-security/alb-details-listener.png)
 
-> **Image required:** EC2 and RDS security groups showing rule sources.
+<p style="text-align: center;"><em>Figure 5.16. Internet-facing ALB with an HTTP port 80 listener forwarding to the backend target group.</em></p>
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.5-Traffic-security/ec2-security-group.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.5-Traffic-security/rds-security-group.png -->
+## Restrict access with security groups
 
-## Step 4: Configure CloudFront API behavior
+Security groups use source relationships instead of exposing application ports directly to the Internet:
 
-Add the ALB origin and `/api/*` behavior over HTTP. Default `(*)` remains on S3. Remove the previous direct CloudFront-to-EC2 origin.
+| Resource | Required inbound rule | Purpose |
+| --- | --- | --- |
+| ALB | HTTP port `80` for the current public listener | Receive API requests from CloudFront |
+| EC2 backend | TCP `8080` with the ALB security group as source | Allow only the ALB to call Spring Boot |
+| EC2 backend | SSH `22` from the administrator IP `/32` | Support manual administration through MobaXterm |
+| Amazon RDS | MySQL `3306` with the EC2 security group as source | Allow only the backend to connect to the database |
 
-> **Image required:** CloudFront origins and `(*)`/`/api/*` behaviors.
+EC2 does not expose port `8080` to `0.0.0.0/0`. Ports `80` and `443` are also unnecessary on EC2 because the instance does not run Nginx. Its public IPv4 address is used only for SSH administration within the workshop, not as an application endpoint.
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.5-Traffic-security/cloudfront-origins.png -->
-<!-- IMAGE_PATH: /images/5-Workshop/5.5-Traffic-security/cloudfront-behaviors.png -->
+![ALB security group inbound rules](/images/5-Workshop/5.5-Traffic-security/alb-security-group-inbound.png)
 
-## Step 5: Cloudflare DNS
+<p style="text-align: center;"><em>Figure 5.17. The ALB security group allows HTTP port 80 and HTTPS port 443 from the Internet.</em></p>
 
-Point `cloud-ewallet.com` to CloudFront according to the live record and retain the Amazon SES domain-verification and Easy DKIM CNAME records. Keep SES records as DNS only rather than Cloudflare-proxied.
+The EC2 inbound rules are shown in [Section 5.3.1](../5.3-Backend-deployment/5.3.1-Backend-environment/), and the RDS inbound rule is shown in [Section 5.2.1](../5.2-Database-deployment/5.2.1-RDS-configuration/), so the screenshots are not duplicated here.
 
-> **Image required:** Redacted Cloudflare DNS records.
+## Route the API through CloudFront
 
-<!-- IMAGE_PATH: /images/5-Workshop/5.5-Traffic-security/cloudflare-dns.png -->
+The distribution has two origins and two behaviors:
+
+- Default `(*)` uses the S3 frontend origin with `Managed-CachingOptimized`.
+- `/api/*` uses `ewallet-alb-origin` with `Managed-CachingDisabled`, preventing unintended API-response caching.
+
+CloudFront origins and behaviors are documented in [Section 5.4.1](../5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/). This section focuses on their role in the end-to-end routing flow.
+
+## Configure the domain in Cloudflare
+
+Cloudflare manages the DNS zone for `cloud-ewallet.com`. Records originate from several services:
+
+| Record group | Source | Purpose |
+| --- | --- | --- |
+| CNAME `cloud-ewallet.com` | CloudFront distribution domain | Route the apex domain to CloudFront |
+| CNAME `www` | `cloud-ewallet.com` | Support `www.cloud-ewallet.com` |
+| Certificate-validation CNAME | AWS Certificate Manager | Validate the domain and support automatic TLS certificate renewal |
+| DKIM CNAME records | Amazon SES domain identity | Validate DKIM for project email |
+| MX and TXT for `send.cloud-ewallet.com` | Amazon SES Custom MAIL FROM | Configure MAIL FROM and SPF |
+| TXT `_dmarc` | Team-defined policy | Publish the domain DMARC policy |
+
+AWS and email verification records are set to **DNS only**, without Cloudflare proxying, so ACM and SES can read the DNS values correctly. SES domain identity, Easy DKIM, and SMTP credentials are covered in [Section 5.3.1](../5.3-Backend-deployment/5.3.1-Backend-environment/).
+
+![Cloud E-Wallet DNS records in Cloudflare](/images/5-Workshop/5.5-Traffic-security/cloudflare-dns-records.png)
+
+<p style="text-align: center;"><em>Figure 5.18. CloudFront, ACM, and Amazon SES records in Cloudflare DNS.</em></p>
 
 ## Validation
 
-The domain serves the frontend over HTTPS, `/api/*` reaches the ALB, the target is Healthy, and direct EC2:8080 is blocked. One target does not provide full high availability.
+After configuration, our team confirmed that:
+
+- `https://cloud-ewallet.com` loads the S3 frontend through CloudFront.
+- CloudFront routes `/api/*` requests to the ALB and then EC2 port `8080`.
+- The EC2 target is **Healthy** in the target group.
+- The EC2 public address cannot be used to access port `8080` directly.
+- EC2 connects to RDS on port `3306` according to the security-group source rule.
+- The domain, certificate, and SES verification records operate through Cloudflare DNS.
