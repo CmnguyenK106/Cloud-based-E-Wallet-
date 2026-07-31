@@ -36,14 +36,15 @@ Chương trình có lộ trình kết hợp giữa tự học, thực hành dự
 
 Điều em hài lòng nhất là có cơ hội cùng nhóm phát triển và triển khai một sản phẩm hoàn chỉnh thay vì chỉ thực hiện các bài lab độc lập. Quá trình đó giúp em nhìn thấy mối liên hệ giữa yêu cầu nghiệp vụ, source code, kiến trúc và trạng thái vận hành thực tế.
 
+Đây cũng là lần đầu tiên em tự tay triển khai một website hoàn chỉnh. Trước đây, em thường thắc mắc một website sau khi phát triển xong sẽ được đưa lên Internet và vận hành như thế nào. Qua dự án, em đã trực tiếp thực hiện các bước từ chuẩn bị hạ tầng, triển khai frontend và backend đến kết nối domain và kiểm tra hệ thống. Mặc dù kết quả vẫn còn một số thiếu sót, trải nghiệm này giúp em hiểu rõ hơn quy trình triển khai thực tế và tự tin hơn khi tiếp tục hoàn thiện kỹ năng Cloud.
+
 Em sẵn sàng giới thiệu chương trình cho các bạn muốn tìm hiểu AWS theo hướng thực hành. Chương trình phù hợp với người sẵn sàng tự học, chủ động đặt câu hỏi và dành thời gian hoàn thiện sản phẩm nhóm.
 
 ## Đề xuất cải thiện
 
-- Tổ chức các buổi review ngắn tại những mốc quan trọng như chốt kiến trúc, hoàn thiện chức năng, triển khai và báo cáo.
-- Cung cấp checklist chung về bảo mật tài khoản, quản lý chi phí, bằng chứng triển khai và tiêu chí hoàn thành workshop.
-- Tăng hoạt động trình bày chéo giữa các nhóm để thực tập sinh tham khảo nhiều cách giải quyết cho cùng một bài toán.
-- Thống nhất sớm cách đặt tên tài nguyên, cấu trúc tài liệu và phạm vi nội dung cần lưu lại để giảm thời gian chỉnh sửa cuối kỳ.
+- Em đề xuất chương trình xây dựng danh sách các bài lab theo từng định hướng như AI, phát triển ứng dụng Web trên Cloud, CI/CD và DevOps. Mỗi hướng có thể nêu thứ tự học, mức độ ưu tiên và kiến thức cần có để thực tập sinh biết nên bắt đầu từ đâu, cần hoàn thành những lab nào và lựa chọn lộ trình phù hợp với đề tài của nhóm.
+- Em hy vọng trong tương lai văn phòng có thể bố trí thêm chỗ ngồi hoặc không gian làm việc để thực tập sinh có điều kiện lên văn phòng thường xuyên hơn, thuận tiện trao đổi trực tiếp và làm việc cùng nhau.
+- Em mong các anh chị khóa trước có thể chia sẻ một danh sách ngắn những quán ăn phù hợp ở khu vực gần công ty. Đây là thông tin nhỏ nhưng hữu ích đối với các bạn mới đến văn phòng và cũng giúp mọi người dễ kết nối hơn trong giờ nghỉ.
 
 ## Mong muốn
 

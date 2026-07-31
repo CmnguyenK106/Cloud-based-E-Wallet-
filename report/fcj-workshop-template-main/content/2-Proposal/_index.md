@@ -76,26 +76,52 @@ The CloudFront Web ACL uses the AWS Managed Rule Group `AWS-AWSManagedRulesCommo
 
 #### *Network and security design*
 
-The deployment architecture places the VPC in Singapore (`ap-southeast-1`) across two Availability Zones. Each AZ has one public and one private subnet. The internet-facing ALB is associated with both public subnets, while the two ASG-managed EC2 instances run in the two private subnets. The RDS DB subnet group also spans these private subnets, and the Single-AZ RDS MySQL instance is active in one Availability Zone. The NAT Gateway is placed in one public subnet; the Internet Gateway is attached to the VPC rather than belonging to one subnet or Availability Zone.
+The architecture is deployed in a VPC in the Singapore AWS Region (`ap-southeast-1`) and distributed across two Availability Zones to improve availability. Each Availability Zone contains one public subnet and one private subnet.
 
-Inbound and outbound paths are separated:
+The two backend EC2 instances run in private subnets across the two Availability Zones and are managed by an Auto Scaling Group. They have no public IP addresses and accept application traffic only from the Application Load Balancer.
+
+Amazon RDS for MySQL is deployed in the private network tier. Its DB subnet group spans the two private subnets, allowing AWS to select an appropriate subnet for database placement. The system uses a Single-AZ RDS configuration, so only one DB instance is active in one Availability Zone at a time, without a synchronized standby instance in the other AZ.
+
+Security Groups control access between tiers. The backend EC2 instances accept application traffic only from the Application Load Balancer, while RDS permits MySQL connections on port `3306` only from the EC2 Security Group.
+
+The NAT Gateway is located in one public subnet and provides outbound Internet connectivity for the private EC2 instances. The Internet Gateway is attached directly to the VPC and does not belong to a specific subnet or Availability Zone.
+
+Application inbound flow:
 
 ```text
-User/CloudFront
-  → ALB Security Group: TCP 80/443
+User browser
+  → Application Load Balancer: TCP 80/443
   → Target Group
-  → EC2 Security Group: TCP 8080 only from the ALB Security Group
-  → RDS Security Group: TCP 3306 only from the EC2 Security Group
-
-Private EC2 outbound
-  → private subnet route
-  → NAT Gateway in a public subnet
-  → Internet Gateway
-  → Internet or public service endpoint
+  → EC2 backend: TCP 8080
+  → Amazon RDS for MySQL: TCP 3306
 ```
 
-The NAT Gateway does not receive user requests and is not part of the application's inbound path. The backend accepts traffic only from the ALB security group on port `8080`. Private-instance administration requires a separately designed access mechanism.
+The Security Groups follow least-access rules:
 
+```text
+ALB Security Group
+  → allows inbound TCP 80/443 from the Internet
+
+EC2 Security Group
+  → allows inbound TCP 8080 only from the ALB Security Group
+
+RDS Security Group
+  → allows inbound TCP 3306 only from the EC2 Security Group
+```
+
+EC2 outbound flow:
+
+```text
+Private EC2 instance
+  → private subnet route table
+  → NAT Gateway in a public subnet
+  → Internet Gateway
+  → Internet or service using a public endpoint
+```
+
+The NAT Gateway supports only outbound connections initiated by resources in private subnets. It does not receive user requests and is not part of the application's inbound path.
+
+Because the backend EC2 instances run in private subnets without public IP addresses, administrative SSH sessions must use a controlled private management path. The Security Group does not expose SSH directly from the Internet to the backend tier.
 #### *Availability and scalability*
 
 The ALB and ASG distribute compute across two Availability Zones. A desired capacity of `2` maintains two EC2 instances; when a target is unhealthy, the ALB stops routing to it and the ASG can create a replacement. With `Max = 2`, the configuration emphasizes application-tier recovery and availability rather than scaling beyond two instances. One NAT Gateway remains an outbound-path dependency, while Single-AZ RDS is the largest availability limitation, so the architecture is not presented as end-to-end HA.
@@ -141,6 +167,8 @@ The team analyzed requirements and designed the system; developed React, Spring 
 ## 7. Budget estimate
 
 The following is an estimate for Singapore (`ap-southeast-1`) using On-Demand pricing and 730 hours per month, not an invoice. The `cloud-ewallet.com` domain cost **USD 10.98** as a one-time payment and is not repeated in monthly operating cost.
+
+### Usage assumptions
 
 All three scenarios preserve the deployed `Desired = 2` architecture: two `t3.micro` EC2 instances, two 8 GB gp3 EBS volumes, one Single-AZ `db.t4g.micro` RDS instance with 20 GB, and one ALB. Scenarios vary by ALB LCU, S3, CloudFront, SES, CloudWatch, and WAF requests.
 

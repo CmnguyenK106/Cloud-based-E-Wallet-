@@ -122,7 +122,7 @@ EC2 private instance
 
 NAT Gateway chỉ hỗ trợ các kết nối outbound được khởi tạo từ tài nguyên trong private subnet. NAT Gateway không tiếp nhận request từ người dùng và không nằm trong đường inbound của ứng dụng.
 
-Do các EC2 backend được đặt trong private subnet và không có public IP, việc quản trị được thực hiện bằng SSH thông qua một bastion host đặt trong public subnet. Bastion host đóng vai trò trung gian, cho phép quản trị viên truy cập các EC2 private mà không cần mở quyền SSH trực tiếp từ Internet vào tầng backend.
+Do các EC2 backend được đặt trong private subnet và không có public IP, phiên SSH quản trị phải đi qua một kênh truy cập riêng được kiểm soát. Security Group không mở SSH trực tiếp từ Internet vào tầng backend.
 
 
 #### *High Availability và khả năng mở rộng*

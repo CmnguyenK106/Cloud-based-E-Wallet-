@@ -36,7 +36,7 @@ The `ewallet-rds-subnet-group` DB subnet group contains two private subnets in `
 
 The project uses a MySQL Community RDS instance named `ewallet-db` with the `db.t4g.micro` instance class in the Singapore Region. After creation, the database reached the **Available** state.
 
-The database has no public access and is not deployed as a public database. The backend connects through the internal RDS endpoint on port `3306`; its credentials are stored in `/home/ec2-user/ewallet-backend.env`. The real endpoint, username, and password are never included in source code or this report.
+Amazon RDS has public access disabled, and the database is not deployed in a public subnet. The backend connects through the internal RDS endpoint on port `3306`; its credentials are stored in `/home/ec2-user/ewallet-backend.env`. The real endpoint, username, and password are never included in source code or this report.
 
 Documentation uses placeholders only:
 

@@ -36,14 +36,15 @@ The program combined self-study, project implementation, events, and report writ
 
 The most satisfying part was developing and deploying a complete product with my team instead of completing only independent labs. This process showed the relationship among business requirements, source code, architecture, and actual operating state.
 
+This was also the first time I had deployed a complete website myself. Before the internship, I often wondered how a website was published to the Internet and operated after development. Through the project, I directly worked through the process of preparing infrastructure, deploying the frontend and backend, connecting the domain, and validating the system. Although the result still has some limitations, this experience gave me a clearer understanding of real deployment work and greater confidence in continuing to improve my cloud skills.
+
 I would recommend the program to students who want to learn AWS through practice. It is particularly suitable for learners who are willing to research independently, ask questions proactively, and invest time in a group product.
 
 ## Suggestions for improvement
 
-- Hold short reviews at important milestones such as architecture approval, feature completion, deployment, and report preparation.
-- Provide a shared checklist for account security, cost management, deployment evidence, and workshop completion criteria.
-- Increase cross-team presentation opportunities so interns can compare different solutions to similar problems.
-- Agree early on resource naming, documentation structure, and evidence requirements to reduce end-of-program revisions.
+- I suggest organizing recommended labs by learning direction, such as AI, cloud-based web application development, CI/CD, and DevOps. Each direction could specify the recommended order, priorities, and prerequisites so interns know where to begin, which labs to complete, and which path best matches their team project.
+- I hope the office can provide more seats or working space in the future so that interns can visit more regularly, collaborate in person, and discuss their work more conveniently.
+- It would be helpful if previous interns or mentors shared a short list of suitable places to eat near the office. Although this is a small detail, it would help newcomers become familiar with the area and make it easier for members to connect during breaks.
 
 ## Expectations
 
