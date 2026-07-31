@@ -77,26 +77,53 @@ Cloud E-Wallet được thiết kế với Amazon S3 và Amazon CloudFront để
 Web ACL gắn với CloudFront sử dụng AWS Managed Rule Group `AWS-AWSManagedRulesCommonRuleSet`, tức Core Rule Set có capacity **700 WCU**. Bộ rule bao phủ các nhóm request phổ biến như User-Agent thiếu hoặc bất thường, bad bots cơ bản, SSRF hướng đến EC2 metadata, LFI/RFI, restricted extensions, XSS và giới hạn kích thước request. Một số rule đang ở chế độ **Block**; các rule như SizeRestrictions và CrossSiteScripting được để **Count** nhằm theo dõi sampled requests trước khi quyết định block. Kiến trúc hiện không tuyên bố sử dụng Bot Control, Fraud Control hoặc paid Marketplace rule groups.
 
 #### *Thiết kế mạng và bảo mật*
+Kiến trúc được triển khai trong một VPC tại AWS Region Singapore (`ap-southeast-1`) và phân bổ trên hai Availability Zone nhằm nâng cao tính sẵn sàng. Mỗi Availability Zone bao gồm một public subnet và một private subnet.
 
-Kiến trúc triển khai đặt VPC tại Region Singapore (`ap-southeast-1`) và trải trên hai Availability Zone. Mỗi AZ có một public subnet; ALB internet-facing liên kết với cả hai public subnet. Hai EC2 do ASG quản lý được bố trí trong hai private subnet. DB subnet group của RDS cũng bao phủ hai subnet này, còn RDS MySQL được triển khai Single-AZ tại một Availability Zone. NAT Gateway nằm trong một public subnet; Internet Gateway được gắn với VPC chứ không thuộc riêng một subnet hay Availability Zone.
+Hai EC2 backend được đặt trong hai private subnet thuộc hai Availability Zone và được quản lý bởi Auto Scaling Group. Các EC2 không có public IP và chỉ nhận lưu lượng ứng dụng từ Application Load Balancer.
 
-Luồng inbound và outbound được tách rõ:
+Amazon RDS for MySQL được triển khai trong tầng mạng private. DB subnet group bao phủ hai private subnet thuộc hai Availability Zone, cho phép AWS lựa chọn subnet phù hợp để đặt cơ sở dữ liệu. Tuy nhiên, hệ thống hiện sử dụng cấu hình RDS Single-AZ, do đó tại một thời điểm chỉ có một DB instance hoạt động trong một Availability Zone và không có standby instance đồng bộ tại AZ còn lại.
+
+Quyền truy cập giữa các tầng được kiểm soát bằng Security Group. EC2 backend chỉ nhận lưu lượng từ Application Load Balancer, trong khi RDS chỉ cho phép kết nối MySQL trên cổng `3306` từ Security Group của EC2.
+
+NAT Gateway được đặt trong một public subnet để cung cấp kết nối outbound Internet cho các EC2 trong private subnet. Internet Gateway được gắn trực tiếp với VPC và không thuộc riêng một subnet hoặc Availability Zone nào.
+
+Luồng inbound của ứng dụng:
 
 ```text
-User/CloudFront
-  → ALB Security Group: TCP 80/443
+User browser
+  → Application Load Balancer: TCP 80/443
   → Target Group
-  → EC2 Security Group: TCP 8080 chỉ từ ALB Security Group
-  → RDS Security Group: TCP 3306 chỉ từ EC2 Security Group
-
-EC2 private outbound
-  → private subnet route
-  → NAT Gateway trong public subnet
-  → Internet Gateway
-  → Internet hoặc public service endpoint
+  → EC2 backend: TCP 8080
+  → Amazon RDS for MySQL: TCP 3306
 ```
 
-NAT Gateway không nhận request từ người dùng và không nằm trong đường inbound của ứng dụng. Backend chỉ nhận traffic từ ALB Security Group trên port `8080`. Việc quản trị private instance cần một cơ chế truy cập được thiết kế riêng.
+Các Security Group được cấu hình theo nguyên tắc giới hạn quyền truy cập:
+
+```text
+ALB Security Group
+  → cho phép inbound TCP 80/443 từ Internet
+
+EC2 Security Group
+  → chỉ cho phép inbound TCP 8080 từ ALB Security Group
+
+RDS Security Group
+  → chỉ cho phép inbound TCP 3306 từ EC2 Security Group
+```
+
+Luồng outbound của EC2:
+
+```text
+EC2 private instance
+  → route table của private subnet
+  → NAT Gateway trong public subnet
+  → Internet Gateway
+  → Internet hoặc dịch vụ sử dụng public endpoint
+```
+
+NAT Gateway chỉ hỗ trợ các kết nối outbound được khởi tạo từ tài nguyên trong private subnet. NAT Gateway không tiếp nhận request từ người dùng và không nằm trong đường inbound của ứng dụng.
+
+Do các EC2 backend được đặt trong private subnet và không có public IP, việc quản trị được thực hiện bằng SSH thông qua một bastion host đặt trong public subnet. Bastion host đóng vai trò trung gian, cho phép quản trị viên truy cập các EC2 private mà không cần mở quyền SSH trực tiếp từ Internet vào tầng backend.
+
 
 #### *High Availability và khả năng mở rộng*
 
@@ -177,13 +204,27 @@ Cả ba mức đều giữ đúng kiến trúc `Desired = 2`: hai EC2 `t3.micro`
 | **Tổng duy trì ước tính/tháng** | **117,53** | **122,92** | **140,01** |
 | **Tổng tháng đầu gồm tên miền** | **128,51** | **133,90** | **150,99** |
 
-Dự toán WAF khoảng **12 USD/tháng** gồm 1 Web ACL (5 USD), 1 AWS Managed Rule Group (1 USD) và tối đa 10 triệu request trong giả định (6 USD). `AWSManagedRulesCommonRuleSet` không có subscription fee bổ sung như Bot Control hoặc Marketplace rules. Con số này không cố định: rule bổ sung, request vượt giả định, logging, CAPTCHA, Bot Control hoặc paid managed rule groups có thể làm chi phí tăng. ASG không có phí quản lý riêng; chi phí của nó được thể hiện qua hai EC2 và hai EBS. NAT Gateway được ước tính theo giả định Singapore là 0,059 USD/giờ và 0,059 USD/GB xử lý: mức tối thiểu `730 × 0,059 + 1 × 0,059`, mức trung bình dùng 5 GB và mức tối đa giả định dùng 20 GB. Giá cần được đối chiếu lại với AWS Pricing Calculator tại thời điểm triển khai.
+Chi phí AWS WAF được ước tính khoảng **12 USD mỗi tháng**, bao gồm 5 USD cho một Web ACL, 1 USD cho một AWS Managed Rule Group và khoảng 6 USD để xử lý tối đa 10 triệu request theo giả định. Rule group `AWSManagedRulesCommonRuleSet` không phát sinh phí subscription riêng như Bot Control hoặc các managed rule group trả phí trên AWS Marketplace.
 
-- **Tối thiểu – 117,53 USD/tháng:** hai backend EC2 luôn được duy trì, lưu lượng demo thấp, CloudWatch chỉ dùng metrics cơ bản và WAF nằm trong giả định.
-- **Trung bình – 122,92 USD/tháng:** cùng cấu hình compute/database, nhưng LCU, transfer, request, email và dữ liệu theo dõi tăng ở mức nhóm sử dụng thường xuyên.
-- **Tối đa giả định – 140,01 USD/tháng:** vẫn giới hạn hai EC2 nhưng tăng LCU, S3, CloudFront, SES và CloudWatch trong phạm vi bảng.
+Mức chi phí này chỉ mang tính ước tính và có thể tăng khi hệ thống bổ sung rule, vượt quá số lượng request giả định hoặc sử dụng thêm các tính năng như logging, CAPTCHA, Challenge, Bot Control và các paid managed rule group.
 
-Dự toán chưa gồm thuế, Free Tier, snapshot, backup phát sinh, data transfer ngoài giả định và tài nguyên không có trong bảng. Giá thực tế thay đổi theo thời điểm, Region và mức sử dụng.
+Amazon EC2 Auto Scaling không thu phí quản lý riêng. Vì vậy, chi phí của Auto Scaling Group được phản ánh thông qua các tài nguyên mà nhóm quản lý và sử dụng, chủ yếu gồm hai EC2 instance, hai EBS volume và các chỉ số hoặc cảnh báo CloudWatch liên quan.
+
+Đối với NAT Gateway, dự toán sử dụng đơn giá giả định tại Region Singapore là **0,059 USD mỗi giờ** và **0,059 USD cho mỗi GB dữ liệu được xử lý**. Với 730 giờ hoạt động mỗi tháng, chi phí NAT Gateway được tính theo ba mức sử dụng:
+
+* Mức tối thiểu: 1 GB dữ liệu xử lý.
+* Mức trung bình: 5 GB dữ liệu xử lý.
+* Mức tối đa giả định: 20 GB dữ liệu xử lý.
+
+Đơn giá và kết quả dự toán cần được kiểm tra lại bằng AWS Pricing Calculator tại thời điểm triển khai do giá dịch vụ có thể thay đổi theo Region và thời gian.
+
+Tổng chi phí hệ thống được chia thành ba kịch bản:
+
+* **Mức tối thiểu – 117,53 USD/tháng:** hai EC2 backend được duy trì liên tục, lưu lượng phục vụ demo ở mức thấp, CloudWatch chủ yếu sử dụng các metrics cơ bản và AWS WAF hoạt động trong phạm vi request giả định.
+* **Mức trung bình – 122,92 USD/tháng:** giữ nguyên cấu hình compute và database, nhưng mức sử dụng ALB LCU, data transfer, request, email và dữ liệu giám sát tăng do hệ thống được sử dụng thường xuyên hơn.
+* **Mức tối đa giả định – 140,01 USD/tháng:** vẫn duy trì tối đa hai EC2 backend nhưng giả định mức sử dụng ALB LCU, Amazon S3, Amazon CloudFront, Amazon SES và Amazon CloudWatch cao hơn trong phạm vi đã xác định trong bảng dự toán.
+
+Dự toán trên chưa bao gồm thuế, các ưu đãi từ AWS Free Tier, snapshot và backup phát sinh, data transfer vượt ngoài giả định cũng như các tài nguyên không được liệt kê trong bảng. Chi phí thực tế có thể thay đổi tùy theo thời điểm, Region triển khai và mức sử dụng thực tế của hệ thống.
 
 ## 8. Đánh giá rủi ro và chiến lược giảm thiểu
 

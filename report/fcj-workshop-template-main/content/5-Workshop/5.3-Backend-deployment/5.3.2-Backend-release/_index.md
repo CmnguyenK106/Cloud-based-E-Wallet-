@@ -14,8 +14,8 @@ Validate the Spring Boot source, create a Docker image, and run the backend cont
 
 | Environment | Work |
 | --- | --- |
-| Local Windows machine | Run Maven tests/package and build the Docker image |
-| Production EC2 | Run the container with production configuration and check health |
+| Local Windows machine | Run Maven tests/package, build the Docker image, and push it to Docker Hub |
+| Production EC2 | Pull the Docker image, run the container with production configuration, and check health |
 | AWS Console and production domain | Verify ALB targets, API routing, and Amazon SES email |
 
 PowerShell source checks run locally. Production `docker run`, `docker ps`, `docker logs`, and `curl` commands run through an SSH session reached through the private management path on each EC2 instance. Both ASG instances use the same image, environment file, and start command; the Target Group serves only instances that pass health checks.
@@ -34,25 +34,30 @@ Continue only after both commands succeed. The packaged JAR is created in `backe
 
 The project Dockerfile uses a multi-stage build with Maven and Java 17, followed by an Eclipse Temurin Java 17 JRE runtime image. The application runs as a non-root user and exposes port `8080`.
 
-## Build the Docker image
+## Build and push the Docker image to Docker Hub
 
-In `backend/`, build and verify the image:
+In `backend/`, sign in to Docker Hub, build the image, and push the selected release to the registry:
 
 ```powershell
+docker login
 docker build -t <BACKEND_IMAGE> .
 docker image ls
+docker push <BACKEND_IMAGE>
 ```
 
-`<BACKEND_IMAGE>` represents the image name and tag selected for the backend release.
+`<BACKEND_IMAGE>` is the fully qualified image name and tag in the form `<DOCKER_HUB_USERNAME>/<IMAGE_NAME>:<IMAGE_TAG>`. The report uses a placeholder because the repository does not contain authoritative evidence for the exact production image name and tag. Docker Hub passwords and access tokens must not be placed in source code or documentation.
 
 ## Prepare EC2
 
-On production EC2, confirm that the image and external environment file are available:
+On each production EC2 instance, pull the same image that was pushed to Docker Hub, then confirm that the image and external environment file are available:
 
 ```bash
+docker pull <BACKEND_IMAGE>
 docker image ls
 ls -l /home/ec2-user/ewallet-backend.env
 ```
+
+If the Docker Hub repository is private, run `docker login` on EC2 with a least-privilege credential before `docker pull`. A public repository does not require authentication to pull the image.
 
 Do not use `cat` to display the environment file. It contains RDS credentials, the JWT secret, and SES SMTP credentials. These values enter the container at runtime instead of being embedded in the image.
 

@@ -14,8 +14,8 @@ Kiểm tra source Spring Boot, tạo Docker image và chạy backend container t
 
 | Môi trường | Công việc |
 | --- | --- |
-| Máy local Windows | Chạy Maven test/package và build Docker image |
-| EC2 production | Chạy container bằng file môi trường production và kiểm tra health |
+| Máy local Windows | Chạy Maven test/package, build và push Docker image lên Docker Hub |
+| EC2 production | Pull Docker image, chạy container bằng file môi trường production và kiểm tra health |
 | AWS Console/domain production | Kiểm tra ALB target, API và email Amazon SES |
 
 Các lệnh PowerShell dùng để kiểm tra source được chạy trên máy local. Các lệnh `docker run`, `docker ps`, `docker logs` và `curl` kiểm tra production được chạy trong phiên SSH đến từng EC2 qua kênh quản trị private. Cùng image, file môi trường và cấu hình khởi động được áp dụng cho hai instance của ASG; Target Group chỉ đưa instance qua health check vào phục vụ.
@@ -34,25 +34,30 @@ Chỉ tiếp tục khi test và package thành công. File JAR được tạo tr
 
 Dockerfile của dự án sử dụng multi-stage build với Maven và Java 17 ở build stage, sau đó tạo runtime image sử dụng Eclipse Temurin Java 17 JRE. Ứng dụng chạy bằng user không phải root và expose port `8080`.
 
-## Build Docker image
+## Build và đẩy Docker image lên Docker Hub
 
-Tại thư mục `backend/`, nhóm tạo image:
+Tại thư mục `backend/`, nhóm đăng nhập Docker Hub, tạo image và đẩy đúng phiên bản lên registry:
 
 ```powershell
+docker login
 docker build -t <BACKEND_IMAGE> .
 docker image ls
+docker push <BACKEND_IMAGE>
 ```
 
-`<BACKEND_IMAGE>` là tên và tag Docker image do nhóm đặt cho phiên bản backend được triển khai.
+`<BACKEND_IMAGE>` là tên đầy đủ kèm tag của image được triển khai, theo dạng `<DOCKER_HUB_USERNAME>/<IMAGE_NAME>:<IMAGE_TAG>`. Báo cáo sử dụng placeholder vì repository không lưu bằng chứng xác nhận chính xác tên và tag của phiên bản production. Không đưa mật khẩu hoặc access token Docker Hub vào source và tài liệu.
 
 ## Chuẩn bị trước khi chạy container trên EC2
 
-Trên EC2 production, nhóm xác nhận Docker image đã sẵn sàng và file môi trường tồn tại:
+Trên từng EC2 production, nhóm kéo đúng image đã đẩy lên Docker Hub, sau đó xác nhận image và file môi trường đã sẵn sàng:
 
 ```bash
+docker pull <BACKEND_IMAGE>
 docker image ls
 ls -l /home/ec2-user/ewallet-backend.env
 ```
+
+Nếu Docker Hub repository ở chế độ private, cần chạy `docker login` trên EC2 bằng credential có phạm vi tối thiểu trước khi `docker pull`. Repository public không yêu cầu bước đăng nhập để pull image.
 
 Không sử dụng `cat` để hiển thị file môi trường. File này chứa RDS credential, JWT secret và SES SMTP credential, được truyền vào container tại runtime thay vì ghi trực tiếp trong Docker image.
 

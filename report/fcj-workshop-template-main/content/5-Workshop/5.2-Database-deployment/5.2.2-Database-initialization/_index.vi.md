@@ -28,7 +28,7 @@ Các script production được lưu trong `database/rds/` và chạy theo thứ
 | Thứ tự | Script | Nội dung |
 | --- | --- | --- |
 | 1 | `001_schema.sql` | Tạo các bảng, khóa, index, ràng buộc và quan hệ |
-| 2 | Bản riêng từ `002_admin_template.sql` | Tạo tài khoản và hồ sơ quản trị ban đầu |
+| 2 | `002_admin_template.sql` | Tạo tài khoản và hồ sơ quản trị ban đầu |
 | 3 | `003_services_seed.sql` | Thêm năm dịch vụ mặc định của ứng dụng |
 
 Thứ tự trên cần được giữ nguyên vì admin seed và service seed phụ thuộc vào các bảng được tạo bởi `001_schema.sql`.
