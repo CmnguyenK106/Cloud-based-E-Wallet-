@@ -8,62 +8,81 @@ pre: " <b> 5.4.1. </b> "
 
 ## Objective
 
-Create private Amazon S3 storage for static files and configure CloudFront to deliver the React frontend over HTTPS. Document the important creation steps and final settings rather than every console click.
+Prepare the infrastructure that distributes the React frontend through Amazon S3 and Amazon CloudFront. This section summarizes the main configuration and uses the final resource states as evidence.
 
-## Step 1: Create the S3 bucket
+## Overall process
 
-Open **Amazon S3 → Create bucket**:
+The team completed three stages:
 
-1. Select the project Region and a globally unique bucket name.
-2. Keep **Block all public access** enabled.
-3. Enable versioning when object recovery is required.
-4. Create the bucket without uploading source, `.env.production`, or `node_modules`.
+1. Create a dedicated S3 bucket for frontend static files and keep it private.
+2. Create a CloudFront distribution, configure S3 as the frontend origin, and use Origin Access Control for bucket access.
+3. Attach the custom domain and TLS certificate, then configure behaviors that serve the frontend and route `/api/*` to the backend.
 
-The bucket stores only the contents of `frontend/dist/`.
+## Configure Amazon S3
 
-## Step 2: Create the CloudFront distribution
+The `khoi-ewallet-frontend-2026` bucket stores only the build output from `frontend/dist/`, including `index.html`, the `assets/` directory, and other static resources. Source code, `node_modules`, and `.env.production` are not uploaded.
 
-Open **CloudFront → Create distribution**:
+The bucket remains private through **Block Public Access**. Users cannot retrieve objects directly from S3; CloudFront reads them through Origin Access Control, and the bucket policy limits access to the distribution.
 
-1. Select the S3 regional endpoint as the origin.
-2. Use Origin Access Control (OAC) so CloudFront can read the private bucket.
-3. Apply the bucket policy generated or supplied by CloudFront.
-4. Set **Viewer protocol policy** to **Redirect HTTP to HTTPS**.
-5. Point default behavior `(*)` to the S3 origin.
-6. Allow only `GET`, `HEAD`, and `OPTIONS` for the frontend.
-7. Set **Default root object** to `index.html`.
+![Block Public Access on the frontend bucket](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/s3-block-public-access.png)
 
-Do not use the S3 website endpoint with an OAC origin.
+<p style="text-align: center;"><em>Figure 5.11. Block Public Access enabled for the frontend S3 bucket.</em></p>
 
-## Step 3: Support React Router
+## Configure the CloudFront distribution
 
-If a direct React route returns `403` or `404`, configure custom error responses for both codes with `/index.html` and HTTP response `200`. Test the home page and direct routes afterwards.
+The `ewallet-frontend` distribution is the HTTPS entry point for the application. Its main settings are:
 
-## Step 4: Verify S3 access
+- Default root object: `index.html`.
+- Custom domains: `cloud-ewallet.com` and `www.cloud-ewallet.com`.
+- A custom SSL certificate for the project domain.
+- HTTPS for viewers and the current TLS security policy of the distribution.
+- An S3 origin for the React frontend.
+- An Application Load Balancer origin for backend API traffic.
 
-The bucket policy allows object reads only from the intended distribution. Do not make the bucket public to solve `AccessDenied`. Replace `<AWS_ACCOUNT_ID>`, `<DISTRIBUTION_ID>`, and `<FRONTEND_BUCKET>` during configuration without publishing them unnecessarily.
+![CloudFront distribution overview](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/cloudfront-general.png)
 
-## Step 5: Verify the distribution
+<p style="text-align: center;"><em>Figure 5.12. CloudFront domain, TLS certificate, and default root object settings.</em></p>
 
-Wait for **Deployed**, then open:
+## Configure origins
 
-```text
-https://<CLOUDFRONT_DISTRIBUTION_DOMAIN>
-```
+The distribution uses two origins:
 
-Section 5.5 adds the custom domain and `/api/*` behavior after the backend ALB is ready.
-![S3 Block Public Access settings](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/s3-block-public-access.png)
+| Origin | Type | Responsibility |
+| --- | --- | --- |
+| Frontend S3 bucket | Amazon S3 | Serve `index.html` and React static assets |
+| `ewallet-alb-origin` | Elastic Load Balancing | Forward API requests to the Application Load Balancer |
 
-<p style="text-align: center;"><em>Figure 5.9. Block Public Access enabled for the frontend S3 bucket.</em></p>
-
-![CloudFront general configuration](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/cloudfront-general.png)
-
-<p style="text-align: center;"><em>Figure 5.10. CloudFront domain, TLS certificate, and default root object configuration.</em></p>
+The S3 origin uses Origin Access Control instead of making the bucket public. The ALB origin handles API requests only; its network and security-group configuration is covered in Section 5.5.
 
 ![CloudFront origins](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/cloudfront-origins.png)
 
-<p style="text-align: center;"><em>Figure 5.11. S3 frontend origin and Application Load Balancer origin in CloudFront.</em></p>
+<p style="text-align: center;"><em>Figure 5.13. The S3 frontend origin and Application Load Balancer origin.</em></p>
+
+## Configure behaviors
+
+CloudFront evaluates two behaviors in priority order:
+
+- `/api/*` routes to `ewallet-alb-origin`, uses `Managed-CachingDisabled`, and redirects viewer HTTP requests to HTTPS.
+- Default `(*)` routes to the S3 frontend origin and uses `Managed-CachingOptimized` for static resources.
+
+This split allows the frontend and API to share `cloud-ewallet.com` while reducing CORS complexity because the browser communicates with one public domain.
 
 ![CloudFront behaviors](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/cloudfront-behaviors.png)
 
-<p style="text-align: center;"><em>Figure 5.12. The `/api/*` behavior routes to the ALB, while the default behavior routes to S3.</em></p>
+<p style="text-align: center;"><em>Figure 5.14. The `/api/*` behavior routes to ALB, while the default behavior routes to S3.</em></p>
+
+For React Router, direct navigation to a route may return `403` or `404`. A custom error response can return `/index.html` with status `200`, after which each production route is verified. The custom domain and CloudFront, ACM, and Amazon SES DNS records are described in [Section 5.5](../../5.5-Traffic-security/).
+
+## Attach AWS WAF to CloudFront
+
+A Web ACL containing `AWS-AWSManagedRulesCommonRuleSet` (700 WCU) is associated with the distribution so requests are inspected before reaching the S3 or ALB origin. Rules that were verified as suitable use Block, while SizeRestrictions and CrossSiteScripting rules use Count so sampled requests can be reviewed before blocking. WAF complements rather than replaces JWT authentication, Spring Security, and backend validation.
+
+![AWS WAF Web ACL and managed rules](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/waf-common-rule-set.png)
+
+<p style="text-align: center;"><em>Figure 5.15. The CloudFront Web ACL uses AWS Managed Rules Common Rule Set to inspect requests.</em></p>
+
+## Verification
+
+The team confirms that the distribution uses the correct custom domains and TLS certificate, the default behavior serves the frontend from S3, and `/api/*` reaches ALB without caching API responses. The S3 bucket remains private, and the application home page loads through HTTPS on the production domain.
+
+The frontend build and release procedure is covered in Section 5.4.2.

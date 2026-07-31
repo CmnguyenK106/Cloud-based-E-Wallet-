@@ -6,25 +6,49 @@ chapter: false
 pre: " <b> 7. </b> "
 ---
 
+## Overall evaluation
 
-> Here, you can freely share your personal opinions about your experience participating in the First Cloud AI Journey program. This will help the FCAJ team improve any shortcomings based on the following aspects:
+### 1. Learning and working environment
 
-### Overall Evaluation
+First Cloud AI Journey provides an open learning environment where I can exchange ideas with other members, review different approaches, and verify information through documentation or hands-on work. Connecting the learning content to a concrete project helped me understand AWS services as parts of a complete system rather than isolated concepts.
 
-**1. Working Environment**  
-The working environment is very friendly and open. FCAJ members are always willing to help whenever I encounter difficulties, even outside working hours. The workspace is tidy and comfortable, helping me focus better.
+### 2. Support from mentors and team administrators
 
-**2. Support from Mentor / Team Admin**  
-The mentor provides very detailed guidance, explains clearly when I don’t understand, and always encourages me to ask questions. The admin team supports administrative tasks, provides necessary documents, and creates favorable conditions for me to work effectively. I especially appreciate that the mentor allows me to try and solve problems myself instead of just giving the answer.
+The mentors and administrators provided direction, materials, and feedback when I encountered difficulties. I particularly valued being encouraged to research the problem and explain my approach before receiving suggestions. This helped me become more proactive and understand the reason behind a solution instead of following an answer without context.
 
-**3. Relevance of Work to Academic Major**  
-The tasks I was assigned align well with the knowledge I learned at university, while also introducing me to new areas I had never encountered before. This allowed me to both strengthen my foundational knowledge and gain practical skills.
+### 3. Relevance to my academic major
 
-**4. Learning & Skill Development Opportunities**  
-During the internship, I learned many new skills such as using project management tools, teamwork skills, and professional communication in a corporate environment. The mentor also shared valuable real-world experiences that helped me better plan my career path.
+The internship content aligned with my Information Technology and software-development background. Cloud E-Wallet combined frontend, backend, database, and cloud work while expanding my knowledge of AWS architecture, networking, security, deployment, and operations.
 
-**5. Company Culture & Team Spirit**  
-The company culture is very positive: everyone respects each other, works seriously but still keeps things enjoyable. When there are urgent projects, everyone works together and supports one another regardless of their position. This made me feel like a real part of the team, even as an intern.
+### 4. Learning and skill-development opportunities
 
-**6. Internship Policies / Benefits**  
-The company provides an internship allowance and offers flexible working hours when needed. In addition, having the opportunity to join internal training sessions is a big plus.
+During the internship, I reinforced AWS knowledge and practiced reading source code, using Git, writing technical documentation, deploying a system, and validating end-to-end flows. The two FCAJ events also provided lessons in analyzing scenario questions, business-first thinking, MVP scope selection, and communicating product value.
+
+### 5. Culture and teamwork
+
+The group project demonstrated the importance of progress updates, listening to different perspectives, and agreeing on a shared objective. Because the frontend, backend, database, and infrastructure were closely related, every member needed to communicate changes proactively to prevent inconsistencies in configuration or documentation.
+
+### 6. Program organization
+
+The program combined self-study, project implementation, events, and report writing. This structure allowed interns to build foundational knowledge while producing a demonstrable product and supporting documentation. The report and workshop requirements also encouraged me to preserve evidence and explain technical decisions.
+
+## What I valued most
+
+The most satisfying part was developing and deploying a complete product with my team instead of completing only independent labs. This process showed the relationship among business requirements, source code, architecture, and actual operating state.
+
+I would recommend the program to students who want to learn AWS through practice. It is particularly suitable for learners who are willing to research independently, ask questions proactively, and invest time in a group product.
+
+## Suggestions for improvement
+
+- Hold short reviews at important milestones such as architecture approval, feature completion, deployment, and report preparation.
+- Provide a shared checklist for account security, cost management, deployment evidence, and workshop completion criteria.
+- Increase cross-team presentation opportunities so interns can compare different solutions to similar problems.
+- Agree early on resource naming, documentation structure, and evidence requirements to reduce end-of-program revisions.
+
+## Expectations
+
+If possible, I would like to continue participating in FCAJ technical activities, workshops, or community projects to reinforce my AWS knowledge and learn from members in different roles.
+
+## Closing remarks
+
+I appreciate FCAJ and the mentors for providing an environment in which I could learn, practice, and complete the project. These comments reflect my experience and my hope that the program will become even clearer, more practical, and more useful for future interns.

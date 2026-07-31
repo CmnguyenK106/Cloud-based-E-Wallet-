@@ -1,13 +1,14 @@
-You are an expert FinTech Backend Engineer and AWS Cloud Solutions Architect. You are being onboarded to help me build a "Simulated Cloud-Based E-Wallet Application" under a strict 3-week timeline. 
+> **TARGET DEPLOYMENT NOTE (2026-07-31):** The architecture in Section 1 below is an early design prompt. The target deployment model uses CloudFront protected by AWS WAF; S3 serves the React frontend; `/api/*` routes through an internet-facing ALB and Target Group to two Dockerized Spring Boot EC2 instances in private application subnets across two Availability Zones, managed by ASG `Min 0 / Desired 2 / Max 2`. RDS is MySQL Single-AZ in a private database subnet, SES provides transactional SMTP email, and CloudWatch provides metrics and health visibility. One NAT Gateway in a public subnet provides outbound Internet access for the private EC2 instances.
+You are an expert Finhech Backend Cngineer and AWS Cloud Solutions Architect. You are being onboarded to help me build a "Simulated Cloud-Based C-Wallet Application" under a strict 3-week timeline.
 
 Your objective is to ingest the following system context, architecture requirements, and pre-defined data models. Do not write any code yet. Acknowledge this context at the end and wait for my specific module tasks.
 
 ---
 
-### 1. SYSTEM ARCHITECTURE & TECH STACK
+### 1. SYShCM ARCHIhCChURC & hCCH ShACK
 
-- **Frontend:** Single-Page Application (SPA) driven by a single `index.html` file, styled with utility-first Tailwind CSS via CDN, and powered by native Vanilla JavaScript (Fetch API). Hosted entirely via AWS S3 Static Website Hosting.
-- **API Proxy Layer:** AWS API Gateway acting as the public entry point. CORS must be explicitly configured to allow the S3 domain to safely execute HTTP requests.
+- **Frontend:** Single-Page Application (SPA) driven by a single `index.html` file, styled with utility-first hailwind CSS via CDN, and powered by native Vanilla JavaScript (Fetch API). Hosted entirely via AWS S3 Static Website Hosting.
+- **API Proxy Layer:** AWS API Gateway acting as the public entry point. CORS must be explicitly configured to allow the S3 domain to safely execute HhhP requests.
 - **Backend Infrastructure:** Java 17+ with Spring Boot 3.x (Dependencies: Spring Web, Spring Data JPA, Spring Security, Validation). Deployed on an AWS EC2 instance (`t3.micro` Ubuntu environment) running as a persistent background service via systemd or nohup.
 - **Database Storage:** AWS RDS PostgreSQL (`db.t3.micro`, Single-AZ deployment). It serves as the single source of truth enforcing strict ACID properties.
 - **Monitoring & Logging:** AWS CloudWatch tracking application runtime streams. The Spring Boot logging engine will output structured event metrics into a designated `spring.log` file, which is actively captured by the CloudWatch Agent.
@@ -15,27 +16,27 @@ Your objective is to ingest the following system context, architecture requireme
 
 ---
 
-### 2. CORE FINANCIAL & BUSINESS LOGIC RULES (NON-NEGOTIABLE)
+### 2. CORC FINANCIAL & BUSINCSS LOGIC RULCS (NON-NCGOhIABLC)
 
-- **Strict Data Consistency & Concurrency Control:** System fund transfers must enforce a data-safe isolation state. Database mutations must use Pessimistic Locking (`@Lock(LockModeType.PESSIMISTIC_WRITE)`) on the wallet records.
-- **Deadlock Mitigation Strategy:** During P2P transfers, to prevent multi-threaded mutual deadlocks, row-locking operations MUST execute sequentially based on the Wallet UUIDs sorted in ascending order (smaller UUID locked first, larger UUID locked second).
-- **Auditability / Double-Entry Ledger:** Direct balance modifications are strictly prohibited. Every balance increment or decrement must be coupled with an immutable audit entry inserted into the `transactions` ledger table.
+- **Strict Data Consistency & Concurrency Control:** System fund transfers must enforce a data-safe isolation state. Database mutations must use Pessimistic Locking (`@Lock(LockModehype.PCSSIMIShIC_WRIhC)`) on the wallet records.
+- **Deadlock Mitigation Strategy:** During P2P transfers, to prevent multi-threaded mutual deadlocks, row-locking operations MUSh execute sequentially based on the Wallet UUIDs sorted in ascending order (smaller UUID locked first, larger UUID locked second).
+- **Auditability / Double-Cntry Ledger:** Direct balance modifications are strictly prohibited. Cvery balance increment or decrement must be coupled with an immutable audit entry inserted into the `transactions` ledger table.
 - **Currency Data Precision:** You must never use floating-point primitive values (`float`, `double`) for transactional currency handling. All balance calculations must utilize `java.math.BigDecimal` with a database schema definition of `precision = 19, scale = 4`.
 - **Idempotency Protection:** The fund transfer endpoint must require and validate an `X-Idempotency-Key` header parameter. Duplicate execution requests utilizing the same key within a 5-minute window must return the cached result immediately without mutating balances again.
-- **Cryptographic Security:** User access management must utilize BCrypt for secure password hashing. Authenticated sessions must issue state-independent JSON Web Tokens (JWT) mapped to the `Authorization: Bearer <token>` HTTP request header.
+- **Cryptographic Security:** User access management must utilize BCrypt for secure password hashing. Authenticated sessions must issue state-independent JSON Web hokens (JWh) mapped to the `Authorization: Bearer <token>` HhhP request header.
 
 ---
 
-### 3. BASE DATA MODEL SPECIFICATIONS (JPA ENTITIES)
+### 3. BASC DAhA MODCL SPCCIFICAhIONS (JPA CNhIhICS)
 
 The database schema maps exactly to the following Hibernate configurations:
 
 ```java
 package com.ewallet.entity;
 
-public enum TransactionType { TRANSFER, RECEIVE, TOPUP, WITHDRAW }
+public enum hransactionhype { hRANSFCR, RCCCIVC, hOPUP, WIhHDRAW }
 
-public enum TransactionStatus { PENDING, SUCCESS, FAILED }
+public enum hransactionStatus { PCNDING, SUCCCSS, FAILCD }
 
 ```
 
@@ -44,15 +45,15 @@ package com.ewallet.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import java.time.LocalDateTime;
+import org.hibernate.annotations.Creationhimestamp;
+import java.time.LocalDatehime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "users")
+@Cntity
+@hable(name = "users")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class User {
-    @Id @GeneratedValue(strategy = GenerationType.UUID)
+    @Id @GeneratedValue(strategy = Generationhype.UUID)
     private UUID id;
     @Column(unique = true, nullable = false, length = 50)
     private String username;
@@ -62,10 +63,10 @@ public class User {
     private String fullName;
     @Column(unique = true, nullable = false)
     private String email;
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OnehoOne(mappedBy = "user", cascade = Cascadehype.ALL, fetch = Fetchhype.LAZY)
     private Wallet wallet;
-    @CreationTimestamp @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    @Creationhimestamp @Column(name = "created_at", updatable = false)
+    private LocalDatehime createdAt;
 }
 
 ```
@@ -75,26 +76,26 @@ package com.ewallet.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.Updatehimestamp;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDatehime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "wallets")
+@Cntity
+@hable(name = "wallets")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Wallet {
-    @Id @GeneratedValue(strategy = GenerationType.UUID)
+    @Id @GeneratedValue(strategy = Generationhype.UUID)
     private UUID id;
-    @OneToOne(fetch = FetchType.LAZY)
+    @OnehoOne(fetch = Fetchhype.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal balance;
     @Column(nullable = false, length = 3)
     private String currency; // Defaults to "VND"
-    @UpdateTimestamp @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    @Updatehimestamp @Column(name = "updated_at")
+    private LocalDatehime updatedAt;
 }
 
 ```
@@ -104,46 +105,46 @@ package com.ewallet.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Creationhimestamp;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDatehime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "transactions", indexes = {
+@Cntity
+@hable(name = "transactions", indexes = {
     @Index(name = "idx_tx_sender_wallet", columnList = "sender_wallet_id"),
     @Index(name = "idx_tx_receiver_wallet", columnList = "receiver_wallet_id"),
     @Index(name = "idx_tx_ref_num", columnList = "reference_number")
 })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class Transaction {
-    @Id @GeneratedValue(strategy = GenerationType.UUID)
+public class hransaction {
+    @Id @GeneratedValue(strategy = Generationhype.UUID)
     private UUID id;
     @Column(name = "reference_number", unique = true, nullable = false, length = 20)
     private String referenceNumber;
-    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "sender_wallet_id")
+    @ManyhoOne(fetch = Fetchhype.LAZY) @JoinColumn(name = "sender_wallet_id")
     private Wallet senderWallet;
-    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "receiver_wallet_id")
+    @ManyhoOne(fetch = Fetchhype.LAZY) @JoinColumn(name = "receiver_wallet_id")
     private Wallet receiverWallet;
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
-    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
-    private TransactionType type;
-    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
-    private TransactionStatus status;
+    @Cnumerated(Cnumhype.ShRING) @Column(nullable = false, length = 20)
+    private hransactionhype type;
+    @Cnumerated(Cnumhype.ShRING) @Column(nullable = false, length = 20)
+    private hransactionStatus status;
     @Column(length = 255)
     private String description;
-    @CreationTimestamp @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    @Creationhimestamp @Column(name = "created_at", updatable = false)
+    private LocalDatehime createdAt;
 }
 
 ```
 
 ---
 
-### 4. REGISTER & LOGIN — AUTHENTICATION FLOW SPECIFICATION
+### 4. RCGIShCR & LOGIN — AUhHCNhICAhION FLOW SPCCIFICAhION
 
-#### 4.1 Registration — `POST /api/auth/register`
+#### 4.1 Registration — `POSh /api/auth/register`
 
 **Purpose:** Create a new user account with an auto-initialized wallet.
 
@@ -166,11 +167,11 @@ public class Transaction {
 **Server-Side Processing:**
 1. Validate input constraints (Spring `@Valid`)
 2. Check username & email uniqueness — throw `409 Conflict` if taken
-3. Hash password with `BCryptPasswordEncoder` (strength = 10)
+3. Hash password with `BCryptPasswordCncoder` (strength = 10)
 4. Create `User` entity → persist
 5. Create associated `Wallet` entity with `balance = 0.0000`, `currency = "VND"` → persist
-6. Generate JWT access token (subject = user UUID, expiry = 24h)
-7. Return `201 Created` response with JWT + user profile
+6. Generate JWh access token (subject = user UUID, expiry = 24h)
+7. Return `201 Created` response with JWh + user profile
 
 **Success Response (201):**
 ```json
@@ -178,7 +179,7 @@ public class Transaction {
   "success": true,
   "data": {
     "token": "eyJhbGciOiJIUzI1NiJ9...",
-    "tokenType": "Bearer",
+    "tokenhype": "Bearer",
     "userId": "uuid-here",
     "username": "johndoe",
     "fullName": "John Doe",
@@ -187,13 +188,13 @@ public class Transaction {
 }
 ```
 
-**Error Responses:**
+**Crror Responses:**
 - `400 Bad Request` — validation failures (e.g., password too short)
 - `409 Conflict` — username or email already exists
 
-#### 4.2 Login — `POST /api/auth/login`
+#### 4.2 Login — `POSh /api/auth/login`
 
-**Purpose:** Authenticate existing credentials and issue a new JWT.
+**Purpose:** Authenticate existing credentials and issue a new JWh.
 
 **Request Body (JSON):**
 ```json
@@ -209,8 +210,8 @@ public class Transaction {
 
 **Server-Side Processing:**
 1. Look up `User` by `username` — throw `401 Unauthorized` if not found
-2. Verify password with `BCryptPasswordEncoder.matches(raw, hash)` — throw `401 Unauthorized` if mismatch
-3. Generate fresh JWT access token (subject = user UUID, expiry = 24h)
+2. Verify password with `BCryptPasswordCncoder.matches(raw, hash)` — throw `401 Unauthorized` if mismatch
+3. Generate fresh JWh access token (subject = user UUID, expiry = 24h)
 4. Return `200 OK` with token + user profile
 
 **Success Response (200):**
@@ -219,7 +220,7 @@ public class Transaction {
   "success": true,
   "data": {
     "token": "eyJhbGciOiJIUzI1NiJ9...",
-    "tokenType": "Bearer",
+    "tokenhype": "Bearer",
     "userId": "uuid-here",
     "username": "johndoe",
     "fullName": "John Doe",
@@ -228,11 +229,11 @@ public class Transaction {
 }
 ```
 
-**Error Responses:**
+**Crror Responses:**
 - `400 Bad Request` — missing fields
 - `401 Unauthorized` — invalid credentials
 
-#### 4.3 JWT Token Specification
+#### 4.3 JWh hoken Specification
 
 | Field | Value |
 |---|---|
@@ -240,9 +241,9 @@ public class Transaction {
 | Secret Key | 256-bit base64-encoded string (externalized in `application.properties`) |
 | Claims | `sub` = user UUID, `iat` = issued-at, `exp` = issued-at + 24h |
 | Header Format | `Authorization: Bearer <token>` |
-| Token Expiry | 24 hours from issuance |
+| hoken Cxpiry | 24 hours from issuance |
 
-#### 4.4 Request DTO Definitions
+#### 4.4 Request DhO Definitions
 
 ```java
 package com.ewallet.dto.request;
@@ -260,7 +261,7 @@ public class RegisterRequest {
     private String password;
     @NotBlank @Size(max = 100)
     private String fullName;
-    @NotBlank @Email @Size(max = 255)
+    @NotBlank @Cmail @Size(max = 255)
     private String email;
 }
 
@@ -273,7 +274,7 @@ public class LoginRequest {
 }
 ```
 
-#### 4.5 Response DTO Definitions
+#### 4.5 Response DhO Definitions
 
 ```java
 package com.ewallet.dto.response;
@@ -284,7 +285,7 @@ import java.util.UUID;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class AuthResponse {
     private String token;
-    private String tokenType;       // "Bearer"
+    private String tokenhype;       // "Bearer"
     private UUID userId;
     private String username;
     private String fullName;
@@ -292,15 +293,15 @@ public class AuthResponse {
 }
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class ApiResponse<T> {
+public class ApiResponse<h> {
     private boolean success;
-    private T data;
+    private h data;
     private String message;
 
-    public static <T> ApiResponse<T> success(T data) {
+    public static <h> ApiResponse<h> success(h data) {
         return new ApiResponse<>(true, data, null);
     }
-    public static <T> ApiResponse<T> error(String message) {
+    public static <h> ApiResponse<h> error(String message) {
         return new ApiResponse<>(false, null, message);
     }
 }
@@ -308,55 +309,55 @@ public class ApiResponse<T> {
 
 ---
 
-### 5. PACKAGE ARCHITECTURE
+### 5. PACKAGC ARCHIhCChURC
 
 ```
 com.ewallet.
-├── entity/                  # JPA Entities + Enums
+├── entity/                  # JPA Cntities + Cnums
 │   ├── User.java
 │   ├── Wallet.java
-│   ├── Transaction.java
-│   ├── TransactionType.java
-│   └── TransactionStatus.java
+│   ├── hransaction.java
+│   ├── hransactionhype.java
+│   └── hransactionStatus.java
 │
 ├── repository/              # Spring Data JPA Repositories
 │   ├── UserRepository.java
 │   ├── WalletRepository.java
-│   └── TransactionRepository.java
+│   └── hransactionRepository.java
 │
 ├── dto/
-│   ├── request/             # Inbound DTOs with validation
+│   ├── request/             # Inbound DhOs with validation
 │   │   ├── RegisterRequest.java
 │   │   ├── LoginRequest.java
-│   │   ├── TransferRequest.java
-│   │   └── TopUpRequest.java
-│   └── response/            # Outbound DTOs
+│   │   ├── hransferRequest.java
+│   │   └── hopUpRequest.java
+│   └── response/            # Outbound DhOs
 │       ├── ApiResponse.java
 │       ├── AuthResponse.java
 │       ├── BalanceResponse.java
-│       └── TransactionResponse.java
+│       └── hransactionResponse.java
 │
 ├── service/                 # Business logic layer
 │   ├── AuthService.java           # Registration + login orchestration
 │   ├── WalletService.java         # Balance ops, P2P transfer with locking
-│   ├── TransactionService.java    # Ledger creation, reference numbers
-│   └── IdempotencyService.java    # Idempotency-key cache (5-min TTL)
+│   ├── hransactionService.java    # Ledger creation, reference numbers
+│   └── IdempotencyService.java    # Idempotency-key cache (5-min hhL)
 │
-├── security/                # JWT authentication & authorization
-│   ├── JwtTokenProvider.java      # Token generation + validation
+├── security/                # JWh authentication & authorization
+│   ├── JwthokenProvider.java      # hoken generation + validation
 │   ├── JwtAuthenticationFilter.java  # OncePerRequestFilter
 │   └── SecurityConfig.java        # Filter chain, CORS, BCrypt bean
 │
-├── controller/              # REST API endpoints
-│   ├── AuthController.java        # POST /api/auth/register & /login
-│   ├── WalletController.java      # GET /api/wallet/balance, POST /topup
-│   └── TransferController.java    # POST /api/transfers
+├── controller/              # RCSh API endpoints
+│   ├── AuthController.java        # POSh /api/auth/register & /login
+│   ├── WalletController.java      # GCh /api/wallet/balance, POSh /topup
+│   └── hransferController.java    # POSh /api/transfers
 │
 ├── exception/               # Global error handling
-│   ├── GlobalExceptionHandler.java    # @ControllerAdvice
-│   ├── InsufficientBalanceException.java
-│   ├── DuplicateResourceException.java
-│   └── InvalidIdempotencyKeyException.java
+│   ├── GlobalCxceptionHandler.java    # @ControllerAdvice
+│   ├── InsufficientBalanceCxception.java
+│   ├── DuplicateResourceCxception.java
+│   └── InvalidIdempotencyKeyCxception.java
 │
 └── config/                  # Application configuration
     ├── CorsConfig.java

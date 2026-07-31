@@ -18,7 +18,7 @@ Kiểm tra source Spring Boot, tạo Docker image và chạy backend container t
 | EC2 production | Chạy container bằng file môi trường production và kiểm tra health |
 | AWS Console/domain production | Kiểm tra ALB target, API và email Amazon SES |
 
-Các lệnh PowerShell dùng để kiểm tra source được chạy trên máy local. Các lệnh `docker run`, `docker ps`, `docker logs` và `curl` kiểm tra production được chạy trong phiên SSH đến EC2 bằng MobaXterm.
+Các lệnh PowerShell dùng để kiểm tra source được chạy trên máy local. Các lệnh `docker run`, `docker ps`, `docker logs` và `curl` kiểm tra production được chạy trong phiên SSH đến từng EC2 qua kênh quản trị private. Cùng image, file môi trường và cấu hình khởi động được áp dụng cho hai instance của ASG; Target Group chỉ đưa instance qua health check vào phục vụ.
 
 ## Kiểm tra backend trên máy local
 
@@ -122,7 +122,7 @@ Sau khi health check trên EC2 thành công, nhóm thực hiện:
 3. Thử đăng ký, gửi lại email xác minh và quên mật khẩu.
 4. Kiểm tra Amazon SES Sending Statistics sau khi gửi email.
 
-Không truy cập trực tiếp public IPv4 của EC2 trên port `8080`, vì Security Group chỉ cho phép traffic ứng dụng từ ALB.
+Backend EC2 không nhận traffic ứng dụng trực tiếp từ Internet; Security Group chỉ cho phép port `8080` từ ALB Security Group.
 
 
 ## Kết quả

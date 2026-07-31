@@ -122,9 +122,9 @@ VPC được chia thành bốn subnet trên hai Availability Zone:
 | `ap-southeast-1a` | `ewallet-subnet-public1-ap-southeast-1a` | `ewallet-subnet-private1-ap-southeast-1a` |
 | `ap-southeast-1b` | `ewallet-subnet-public2-ap-southeast-1b` | `ewallet-subnet-private2-ap-southeast-1b` |
 
-Hai public subnet được liên kết với public route table và có route ra Internet thông qua `ewallet-igw`. Các subnet này dành cho những thành phần cần nhận traffic từ bên ngoài, gồm Application Load Balancer và EC2 backend trong phạm vi triển khai hiện tại.
+Hai public subnet dành cho Application Load Balancer internet-facing và NAT Gateway. Hai private subnet bố trí các EC2 backend do Auto Scaling Group quản lý, đồng thời được đưa vào DB subnet group của Amazon RDS. Internet Gateway được gắn với VPC; NAT Gateway trong một public subnet cung cấp kết nối outbound cho EC2 private.
 
-Hai private subnet sử dụng route table riêng và được dành cho Amazon RDS MySQL. RDS không bật public access; kết nối database chỉ được cho phép từ Security Group của backend trên port `3306`. VPC cũng bật **DNS resolution** và **DNS hostnames** để các tài nguyên phân giải được endpoint và hostname cần thiết.
+Hai private subnet sử dụng route table riêng và không có đường inbound trực tiếp từ Internet. RDS không bật public access; DB subnet group bao phủ cả hai Availability Zone, còn DB instance Single-AZ chỉ nhận kết nối từ Security Group của backend trên port `3306`. VPC cũng bật **DNS resolution** và **DNS hostnames** để các tài nguyên phân giải được endpoint và hostname cần thiết.
 
 ![Resource map của VPC Cloud E-Wallet](/images/5-Workshop/5.1-Prerequisites/vpc-resource-map.png)
 
@@ -132,6 +132,9 @@ Hai private subnet sử dụng route table riêng và được dành cho Amazon 
 
 Resource map thể hiện đầy đủ VPC, bốn subnet, các route table và Internet Gateway nên được sử dụng làm hình tổng quan cho phần này. Các cấu hình chi tiết của DB subnet group, Security Group và Application Load Balancer được trình bày trong các bước triển khai tương ứng.
 
+## Tài nguyên compute và bảo vệ edge
+
+CloudFront distribution được associate với AWS WAF Web ACL sử dụng `AWS-AWSManagedRulesCommonRuleSet` (700 WCU). Một số rule đang Block; SizeRestrictions và CrossSiteScripting được giữ ở Count để theo dõi trước khi block. Kiến trúc triển khai sử dụng Launch Template và Auto Scaling Group với `Min = 0`, `Desired = 2`, `Max = 2`, bố trí hai EC2 trong hai private subnet thuộc hai Availability Zone. EC2 private dùng NAT Gateway trong public subnet và Internet Gateway cho kết nối outbound khi cần.
 ## Kết quả mong đợi
 
 Mọi thành viên hiểu cùng quy trình và không cần chia sẻ secret qua source hoặc báo cáo.

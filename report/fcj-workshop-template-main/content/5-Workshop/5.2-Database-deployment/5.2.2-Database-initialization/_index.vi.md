@@ -63,7 +63,7 @@ Do đó `002_admin_local.sql` không được commit lên Git. Nội dung file, 
 
 ## Chuyển script lên EC2
 
-Nhóm sử dụng SFTP của MobaXterm để chuyển ba script cần thiết vào thư mục:
+Nhóm sử dụng SFTP qua kết nối SSH để chuyển ba script cần thiết vào thư mục:
 
 ```text
 /home/ec2-user/sql/

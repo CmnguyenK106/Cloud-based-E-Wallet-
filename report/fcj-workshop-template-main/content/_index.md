@@ -25,16 +25,16 @@ chapter: false
 
 &emsp; **Internship Position:** Workforce Bootcamp - First Cloud AI Journey
 
-&emsp; **Internship Duration:** From 01/06/2025 to 14/08/2025
+&emsp; **Internship Duration:** From 01/06/2026 to 14/08/2026
 
-![Your profile picture](/images/avatar.png)
+![Your profile picture](/images/avatar.jpg)
 
 ### Report Content
 
 1.  [Worklog](1-Worklog/)
 2.  [Proposal](2-Proposal/)
-3.  [BlogsPosted](3-BlogsPosted/)
-4.  [Events Participated](4-EventParticipated/)
+3.  [Published Blog Posts](3-BlogsPosted/)
+4.  [Events Attended](4-EventParticipated/)
 5.  [Workshop](5-Workshop/)
-6.  [Self-evaluation](6-Self-evaluation/)
+6.  [Self-Assessment](6-Self-evaluation/)
 7.  [Sharing and Feedback](7-Feedback/)

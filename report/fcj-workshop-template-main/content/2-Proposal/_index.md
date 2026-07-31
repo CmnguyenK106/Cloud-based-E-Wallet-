@@ -6,172 +6,204 @@ chapter: false
 pre: " <b> 2. </b> "
 ---
 
+# Cloud E-Wallet
+## A simulated e-wallet system deployed on AWS
 
-# Cloud E-Wallet – A simulated e-wallet application deployed on AWS
+### 1. Executive summary
 
+Our team proposes **Cloud E-Wallet**, a web application that simulates account registration and verification, profile and balance management, deposits, transfers, service payments, and transaction-history review. Administrators can view an overview and manage users, transactions, and services. The project is for learning and technical demonstration: it does not process real money, connect to a bank or payment gateway, or store card data.
 
-## 1. Executive summary
+The project also demonstrates a multi-tier AWS deployment in which the frontend, backend, and database are separated; requests are routed through appropriate layers; Amazon SES delivers transactional email; and Amazon CloudWatch supports resource health and metrics monitoring.
 
-Our team proposes **Cloud E-Wallet**, a web application that simulates essential e-wallet operations and is deployed on AWS. Customers can practice account registration, email verification, profile management, balance viewing, simulated deposits, transfers, service payments, and transaction-history review. Administrators can monitor the application and manage users, transactions, and services.
+### 2. Problem statement
 
-The project is for learning and technical demonstration. It does not process real money, connect to a real bank or payment gateway, or store card information.
+Even a simulated e-wallet must address authentication and authorization, consistent balance updates, transaction history, responsive user experience, personalized email, and service continuity when a server becomes unhealthy. A localhost-only environment cannot adequately demonstrate HTTPS, frontend/API routing, health checks, network separation, access control, or automatic instance replacement.
 
-## 2. Problem statement
+#### *Proposed solution*
 
-Even a simulated e-wallet must address secure authentication, customer/administrator authorization, consistent balance updates, transaction history, responsive UI, and cloud deployment.
+Cloud E-Wallet stores the React static build in Amazon S3 and distributes it through Amazon CloudFront over HTTPS. AWS WAF is associated with CloudFront to inspect common HTTP/HTTPS request patterns before they reach an origin. CloudFront routes `/api/*` to an Application Load Balancer. The ALB uses a Target Group to distribute requests to two healthy EC2 backend instances managed by an Auto Scaling Group across two Availability Zones. Dockerized Spring Boot accesses Amazon RDS for MySQL and sends transactional email through Amazon SES SMTP. Amazon CloudWatch provides suitable service metrics and health visibility.
 
-A local-only application cannot fully demonstrate production routing, domain/HTTPS configuration, separation of frontend/backend/database, network controls, health checks, and email delivery. The project therefore needs an AWS architecture that supports end-to-end deployment while remaining appropriate for an internship scope.
+#### *Solution rationale*
 
-## 3. Proposed solution
+- **S3 with CloudFront** keeps the static frontend off EC2, reduces backend load, provides HTTPS, and enables edge caching.
+- **AWS WAF** filters or observes common web-request patterns before the origins. It complements, but does not replace, Spring Security, JWT, and backend validation.
+- **ALB and the Target Group** provide a stable API entry point, health checks, and routing only to healthy targets.
+- **The Auto Scaling Group** maintains two EC2 instances across two Availability Zones and can replace unhealthy instances. `Min = 0`, `Desired = 2`, and `Max = 2` favor application availability while limiting compute growth.
+- **EC2 instances in private subnets** do not accept direct Internet connections. This placement reduces direct exposure and adds defense in depth between the ALB and backend.
+- **Single-AZ RDS MySQL** provides a managed database while controlling cost, but remains the architecture's principal single point of failure.
+- **Amazon SES** fits personalized transactional email whose recipients and content vary by user. Amazon SNS is better suited to notifications or alerts sent to fixed subscribers and is not an equivalent replacement for user-verification email.
+- **CloudWatch** supports metrics and health monitoring for CloudFront, WAF, ALB, EC2, ASG, and RDS where those services expose the required telemetry.
 
-- React 19, TypeScript, and Vite frontend.
-- Java 17, Spring Boot, Spring Security, and JDBC REST API.
-- MySQL for users, tokens, wallets, services, and transactions.
-- BCrypt, signed expiring JWTs, and `user`/`admin` roles.
-- Database transactions and wallet-row locking for balance safety.
-- Amazon S3 and CloudFront for frontend delivery.
-- Application Load Balancer and EC2 for the Dockerized backend.
-- Amazon RDS MySQL in private subnets.
-- Amazon SES SMTP in Singapore (`ap-southeast-1`) with STARTTLS for verification and password-reset email.
-- Cloudflare DNS for the domain and email-verification records.
+### 3. Solution architecture
 
-## 4. Solution architecture
+#### *Diagram*
 
 ![Cloud E-Wallet deployment architecture on AWS](/images/5-Workshop/5.1-Prerequisites/architecture.png)
-<p align="center"><i>Deployment architecture</i></p>
+<p align="center"><i>Cloud E-Wallet deployment architecture on AWS</i></p>
 
-Request flow:
+#### *Request flow*
 
-1. **Access:** Users open the Cloudflare-managed domain, which routes them to Amazon CloudFront.
-2. **Routing:** CloudFront serves static frontend requests from Amazon S3 and sends API requests to the Application Load Balancer.
-3. **Business logic:** The ALB forwards API traffic to the Amazon EC2 instance running the backend.
-4. **Data and communication:** EC2 stores application data in Amazon RDS and sends automated email through Amazon SES.
-5. **Monitoring:** Amazon CloudWatch provides AWS service metrics.
+1. **User → CloudFront/WAF:** The user sends an HTTPS request to a CloudFront distribution protected by AWS WAF.
+2. **CloudFront → S3:** For frontend content, CloudFront retrieves the React static files from S3 and caches them at edge locations.
+3. **CloudFront → ALB:** Requests matching `/api/*` are routed to the internet-facing Application Load Balancer.
+4. **ALB → Target Group → EC2:** The ALB checks `/actuator/health` and forwards requests to healthy EC2 targets on port `8080`. The ASG manages EC2 lifecycle; application traffic does not flow through the ASG.
+5. **EC2 → RDS:** The backend connects to RDS MySQL on port `3306` for transactional data processing.
+6. **EC2 → SES:** The backend sends verification, verification-resend, password-reset, and other suitable transactional email through Amazon SES SMTP on port `587` with authentication and STARTTLS.
+7. **Monitoring:** CloudWatch collects metrics and supports service-health monitoring; it is not part of the synchronous request path.
 
-| Component | Responsibility |
+#### *AWS services*
+
+| Component | Role |
 | --- | --- |
-| Cloudflare DNS | Manages `cloud-ewallet.com` and sender-domain records |
-| CloudFront | Browser HTTPS and routing for frontend and `/api/*` |
-| S3 | Stores the React static build |
-| ALB | Forwards APIs and checks backend health |
-| EC2 | Runs Spring Boot in Docker |
-| RDS MySQL | Stores data in private subnets |
-| Amazon SES SMTP | Sends verification and reset email over authenticated STARTTLS on port `587` |
-| CloudWatch | Monitors AWS service metrics |
+| Amazon S3 | Stores the React static build in a private bucket |
+| Amazon CloudFront | Provides HTTPS, caches frontend content, and routes `/api/*` to the ALB |
+| AWS WAF | Inspects edge requests through a Web ACL associated with CloudFront |
+| Application Load Balancer | Receives API traffic and distributes it to healthy targets |
+| Target Group | Registers EC2 port `8080` and checks `/actuator/health` |
+| Auto Scaling Group | Manages two EC2 instances across two AZs with `Min 0 / Desired 2 / Max 2` |
+| Amazon EC2 | Runs the Dockerized Spring Boot backend |
+| Amazon RDS for MySQL | Stores transactional data; the DB subnet group spans two private subnets, while the DB instance runs in Single-AZ mode |
+| Amazon SES SMTP | Sends transactional email over authenticated STARTTLS on port `587` |
+| Amazon CloudWatch | Provides suitable resource metrics and health visibility |
+| Internet Gateway | Provides Internet routing for public subnets |
+| NAT Gateway | Provides outbound Internet access for private-subnet resources without accepting direct inbound connections |
+| AWS KMS | Manages encryption keys for applicable AWS resources |
+| Security Groups | Restrict ALB → EC2 → RDS traffic and management connections |
+
+#### *AWS WAF*
+
+The CloudFront Web ACL uses the AWS Managed Rule Group `AWS-AWSManagedRulesCommonRuleSet`, the Core Rule Set with a capacity of **700 WCU**. It covers common categories such as missing or abnormal User-Agent headers, basic bad bots, SSRF attempts against EC2 metadata, LFI/RFI, restricted extensions, XSS, and request-size limits. Some rules use **Block**, while rules such as SizeRestrictions and CrossSiteScripting remain in **Count** so sampled requests can be reviewed before blocking. The report does not claim the use of Bot Control, Fraud Control, or paid Marketplace rule groups.
+
+#### *Network and security design*
+
+The deployment architecture places the VPC in Singapore (`ap-southeast-1`) across two Availability Zones. Each AZ has one public and one private subnet. The internet-facing ALB is associated with both public subnets, while the two ASG-managed EC2 instances run in the two private subnets. The RDS DB subnet group also spans these private subnets, and the Single-AZ RDS MySQL instance is active in one Availability Zone. The NAT Gateway is placed in one public subnet; the Internet Gateway is attached to the VPC rather than belonging to one subnet or Availability Zone.
+
+Inbound and outbound paths are separated:
+
+```text
+User/CloudFront
+  → ALB Security Group: TCP 80/443
+  → Target Group
+  → EC2 Security Group: TCP 8080 only from the ALB Security Group
+  → RDS Security Group: TCP 3306 only from the EC2 Security Group
+
+Private EC2 outbound
+  → private subnet route
+  → NAT Gateway in a public subnet
+  → Internet Gateway
+  → Internet or public service endpoint
+```
+
+The NAT Gateway does not receive user requests and is not part of the application's inbound path. The backend accepts traffic only from the ALB security group on port `8080`. Private-instance administration requires a separately designed access mechanism.
+
+#### *Availability and scalability*
+
+The ALB and ASG distribute compute across two Availability Zones. A desired capacity of `2` maintains two EC2 instances; when a target is unhealthy, the ALB stops routing to it and the ASG can create a replacement. With `Max = 2`, the configuration emphasizes application-tier recovery and availability rather than scaling beyond two instances. One NAT Gateway remains an outbound-path dependency, while Single-AZ RDS is the largest availability limitation, so the architecture is not presented as end-to-end HA.
+## 4. Functional scope
+
+### 4.1. Customer
+
+- Register, verify/resend verification email, sign in, and sign out.
+- Request and complete password reset.
+- View/update profile and balance.
+- Make simulated deposits, find recipients, transfer funds, and pay for services.
+- Review transaction history.
+
+### 4.2. Administrator
+
+- View the overview dashboard.
+- List and block/unblock users.
+- Review transactions.
+- Add, edit, activate, or deactivate services.
 
 ## 5. Technical implementation
 
-### Implementation stages
+The team analyzed requirements and designed the system; developed React, Spring Boot, and MySQL locally; containerized the backend; prepared VPC, subnets, Security Groups, and RDS; deployed EC2, ASG, ALB, S3, CloudFront, and WAF; integrated SES; and validated health, business flows, email delivery, and documentation.
 
-Our team delivered the project through five stages:
+- **Frontend:** React 19, TypeScript, and Vite; static build stored on S3 and distributed by CloudFront.
+- **Backend:** Java 17, Spring Boot, Spring Security, JDBC, and Actuator; Dockerized on EC2 port `8080`.
+- **Database:** Single-AZ RDS MySQL in private subnets; `utf8mb4`; database transactions and row-level locking protect balance updates.
+- **Email:** SES SMTP in `ap-southeast-1`, port `587`, authentication, and STARTTLS.
+- **Security:** BCrypt, expiring JWTs, `user`/`admin` roles, secrets outside Git, viewer HTTPS, CloudFront WAF, and Security-Group-restricted inbound traffic.
+- **Operations:** Target Group health check at `/actuator/health`; ASG maintains two EC2 instances; CloudWatch supplies suitable metrics and health monitoring.
 
-1. **Research and design:** Analyze requirements, define the simulated-wallet scope, and design the database and frontend–backend–AWS architecture.
-2. **Local development:** Build the React frontend, Spring Boot REST API, and MySQL database; implement authentication, authorization, wallet workflows, and administration.
-3. **Containerization and cloud preparation:** Validate frontend/backend builds, containerize Spring Boot, create the VPC, subnets, security groups, and prepare RDS.
-4. **Deployment and integration:** Deploy the frontend to S3/CloudFront, run the backend container on EC2 behind the ALB, connect RDS, and configure Cloudflare DNS and Amazon SES SMTP.
-5. **Validation and completion:** Perform health checks, business smoke tests, email testing, network-security review, cost monitoring, and report completion.
+## 6. Implementation plan
 
-### Technical requirements
-
-- **Frontend:** React 19, TypeScript, and Vite; static build hosted on S3, delivered by CloudFront, with responsive layouts.
-- **Backend:** Java 17, Spring Boot, Spring Security, JDBC, and Actuator; Dockerized on EC2 port `8080`, accepting application traffic only from the ALB.
-- **Database:** Amazon RDS for MySQL in private subnets; its security group permits port `3306` only from backend EC2; Vietnamese data uses `utf8mb4`.
-- **Email:** Amazon SES SMTP in `ap-southeast-1`, port `587`, authentication, and STARTTLS; domain identity/DKIM verified through Cloudflare.
-- **Security:** BCrypt, expiring JWTs, `user`/`admin` roles, secrets outside Git, HTTPS from users to CloudFront, and restricted security-group ingress.
-- **Operations:** The ALB checks `/actuator/health`; CloudWatch provides AWS metrics; frontend and backend deployments are currently manual.
-## 6. Functional scope
-
-### Customer
-
-Registration, verification/resend, login/logout, forgot/reset password, profile and balance, simulated deposit, recipient lookup, transfer, service payment, and transaction history.
-
-### Administrator
-
-Dashboard, user listing and block/unblock, transaction review, and service creation/editing/activation/deactivation.
-
-## 7. Expected benefits
-
-- An end-to-end full-stack and AWS learning product.
-- Clear separation of UI, API, and database.
-- Authentication, authorization, and transactional balance processing.
-- Responsive UI and UTF-8 Vietnamese content.
-
-## 8. Implementation plan
-
-| Week | Detailed work |
+| Stage | Work |
 | --- | --- |
-| Week 1 | Review requirements, design the overall AWS architecture and database, and prepare the source repository. |
-| Week 2 | Initialize the project, configure the local development environment, create basic APIs, and structure the frontend. |
-| Week 3 | Implement registration, JWT sign-in, user verification, and Admin/User authorization. |
-| Week 4 | Implement simulated deposits, balance tracking, and account-information management. |
-| Week 5 | Implement transfers, service payments, and transaction history. |
-| Week 6 | Build the Admin Dashboard and validate the system locally. |
-| Week 7 | Containerize Spring Boot and configure the VPC, security groups, EC2, and RDS. |
-| Week 8 | Configure S3 and CloudFront for the frontend and create the Application Load Balancer. |
-| Week 9 | Configure Cloudflare DNS, integrate Amazon SES, and validate production workflows. |
-| Week 10 | Review results, resolve defects, and complete the report and project documentation. |
+| Weeks 1–2 | Analyze requirements, study AWS, and design the database and architecture. |
+| Weeks 3–5 | Develop authentication, authorization, profiles, wallets, transactions, and services. |
+| Week 6 | Complete the administration UI and local testing. |
+| Week 7 | Containerize the backend and prepare VPC, subnets, Security Groups, and RDS. |
+| Week 8 | Deploy S3, CloudFront, WAF, ALB, Target Group, EC2, and ASG. |
+| Week 9 | Integrate SES, validate production, and complete the report. |
 
-## 9. Risks and mitigations
+## 7. Budget estimate
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Secret exposure | High | Separate environment files, placeholders, no committed real values |
-| Incorrect balances | High | Transactions, validation, and wallet-row locking |
-| Backend outage | High | ALB health checks and automatic Docker container restart |
-| AWS cost | Medium | Billing/Cost Explorer review and resource cleanup |
-| Email failure | Medium | Verify the SES domain, sandbox status, STARTTLS, SMTP credentials, bounces, and complaints |
+The following is an estimate for Singapore (`ap-southeast-1`) using On-Demand pricing and 730 hours per month, not an invoice. The `cloud-ewallet.com` domain cost **USD 10.98** as a one-time payment and is not repeated in monthly operating cost.
 
-## 10. Cost
-
-The following figures are **estimates**, not an actual invoice. Our team assumes resources in Singapore (`ap-southeast-1`), On-Demand pricing, 730 operating hours per month, and excludes tax and Free Tier benefits. The maximum is only an upper bound within this report's assumptions; AWS does not cap spending if traffic or resources continue to grow.
-
-### Initial cost
-
-| Cost item | Cost |
-| --- | ---: |
-| Purchase of `cloud-ewallet.com` through Cloudflare | **USD 10.98** |
-| AWS service setup fees | **USD 0.00** |
-| **Total one-time initial cost** | **USD 10.98** |
-
-The domain is recorded as an initial purchase at the amount actually paid by the team and is **not amortized into monthly operating costs** below.
-
-### Usage assumptions
+All three scenarios preserve the deployed `Desired = 2` architecture: two `t3.micro` EC2 instances, two 8 GB gp3 EBS volumes, one Single-AZ `db.t4g.micro` RDS instance with 20 GB, and one ALB. Scenarios vary by ALB LCU, S3, CloudFront, SES, CloudWatch, and WAF requests.
 
 | Item | Minimum | Average | Assumed maximum |
 | --- | --- | --- | --- |
-| EC2 and EBS | One `t3.micro`, 730 hours, 8 GB gp3 | Same as minimum | Same as minimum |
-| RDS MySQL | One Single-AZ `db.t3.micro`, 20 GB | Same as minimum | Same as minimum |
-| ALB | 730 hours, average 0.1 LCU | 730 hours, average 0.3 LCU | 730 hours, average 1 LCU |
-| S3 | 1 GB and few requests | 5 GB, about 30,000 GET and 3,000 PUT requests | 20 GB, about 100,000 GET and 10,000 PUT requests |
-| CloudFront | 5 GB and about 50,000 requests | 30 GB and about 250,000 requests | 100 GB and about 1,000,000 requests |
-| Amazon SES | 1,000 text emails/month | 3,000 text emails/month | 10,000 text emails/month |
-| CloudWatch | Basic metrics only | 1 GB of log ingestion | 5 GB of log ingestion |
+| EC2 and EBS | 2 `t3.micro`; 2 × 8 GB gp3 | Same | Same |
+| RDS MySQL | 1 Single-AZ `db.t4g.micro`, 20 GB | Same | Same |
+| ALB | Average 0.1 LCU | Average 0.3 LCU | Average 1 LCU |
+| S3 | 1 GB, few requests | 5 GB, 30,000 GET and 3,000 PUT | 20 GB, 100,000 GET and 10,000 PUT |
+| CloudFront | 5 GB, 50,000 requests | 30 GB, 250,000 requests | 100 GB, 1,000,000 requests |
+| SES | 1,000 emails | 3,000 emails | 10,000 emails |
+| CloudWatch | Basic metrics | Assumed 1 GB log ingestion | Assumed 5 GB log ingestion |
+| AWS WAF | 1 Web ACL, 1 managed rule group, requests within estimate | Same | Same within 10 million requests |
+| NAT Gateway | 1 gateway, 1 GB processed | 1 gateway, 5 GB processed | 1 gateway, 20 GB processed |
 
-### Monthly operating cost
+### Monthly recurring cost
 
 | Service | Minimum (USD) | Average (USD) | Assumed maximum (USD) |
 | --- | ---: | ---: | ---: |
-| EC2 `t3.micro` | 9.64 | 9.64 | 9.64 |
-| 8 GB gp3 EBS | 0.80 | 0.80 | 0.80 |
-| RDS MySQL `db.t3.micro` + 20 GB | 21.74 | 21.74 | 21.74 |
+| 2 EC2 `t3.micro` instances | 19.28 | 19.28 | 19.28 |
+| 2 EBS gp3 volumes, 8 GB each | 1.60 | 1.60 | 1.60 |
+| RDS MySQL `db.t4g.micro` + 20 GB | 21.74 | 21.74 | 21.74 |
 | Application Load Balancer + LCU | 18.98 | 20.15 | 24.24 |
+| AWS WAF | 12.00 | 12.00 | 12.00 |
+| NAT Gateway (730 hours + data processing) | 43.13 | 43.37 | 44.25 |
 | S3 storage and requests | 0.03 | 0.15 | 0.70 |
 | CloudFront transfer and requests | 0.61 | 3.65 | 12.10 |
 | Amazon SES | 0.16 | 0.48 | 1.60 |
 | CloudWatch | 0.00 | 0.50 | 2.50 |
-| **Estimated monthly operating total** | **51.96** | **57.11** | **73.32** |
-| **First-month total including domain purchase** | **62.94** | **68.09** | **84.30** |
+| **Estimated monthly operation** | **117.53** | **122.92** | **140.01** |
+| **First month including domain** | **128.51** | **133.90** | **150.99** |
 
-### Conditions for each cost level
+The approximately **USD 12/month** WAF estimate consists of one Web ACL (USD 5), one AWS Managed Rule Group (USD 1), and up to ten million requests under the stated assumption (USD 6). `AWSManagedRulesCommonRuleSet` has no additional subscription fee like Bot Control or Marketplace rules. This is not a fixed price: additional rules, request volume, logging, CAPTCHA, Bot Control, or paid managed rule groups can increase cost. ASG has no separate management charge; its workload cost appears as two EC2 instances and two EBS volumes. NAT Gateway is estimated using the Singapore assumption of USD 0.059/hour and USD 0.059/GB processed: minimum is `730 × 0.059 + 1 × 0.059`, average uses 5 GB, and assumed maximum uses 20 GB. The rates should be rechecked in AWS Pricing Calculator at deployment time.
 
-- **Minimum – USD 51.96/month:** The demo runs continuously with one EC2 `t3.micro`, one Single-AZ RDS `db.t3.micro`, and one ALB; up to about 1 GB on S3, 5 GB through CloudFront, 1,000 SES emails, and basic CloudWatch metrics only. Free Tier, tax, snapshots, and resources outside the table are excluded.
-- **Average – USD 57.11/month:** Compute and database sizing remains unchanged, with more regular usage: about 5 GB on S3, 30 GB through CloudFront, 3,000 SES emails, 1 GB of CloudWatch Logs, and an average 0.3 LCU. This represents periodic team testing and demonstrations.
-- **Assumed maximum – USD 73.32/month:** The system still uses one small EC2 and RDS instance, but usage rises to 20 GB on S3, 100 GB through CloudFront, 10,000 SES emails, 5 GB of logs, and an average 1 LCU. A larger EC2/RDS class, additional targets, Multi-AZ, NAT Gateway, WAF, or usage beyond these limits can exceed this figure.
+- **Minimum – USD 117.53/month:** two backend instances remain active, demo traffic is low, CloudWatch uses basic metrics, and WAF remains within the estimate.
+- **Average – USD 122.92/month:** the same compute/database architecture with moderate LCU, transfer, request, email, and monitoring usage.
+- **Assumed maximum – USD 140.01/month:** still limited to two EC2 instances, but with higher LCU, S3, CloudFront, SES, and CloudWatch usage within the table.
 
-AWS prices vary by date, Region, account, and actual consumption. References: [AWS EC2 Pricing](https://aws.amazon.com/ec2/pricing/on-demand/), [Amazon RDS for MySQL Pricing](https://aws.amazon.com/rds/mysql/pricing/), [Elastic Load Balancing Pricing](https://aws.amazon.com/elasticloadbalancing/pricing/), [Amazon CloudFront Pricing](https://aws.amazon.com/cloudfront/pricing/), [Amazon S3 Pricing](https://aws.amazon.com/s3/pricing/), and [Amazon SES Pricing](https://aws.amazon.com/ses/pricing/).
+The estimate excludes tax, Free Tier, snapshots, additional backups, data transfer outside the assumptions, and resources not listed. Actual prices vary by date, Region, and usage.
 
-## 11. Achieved results
+## 8. Risk assessment and mitigation
 
-The application is available at `https://cloud-ewallet.com`; CloudFront/S3 serves the frontend; CloudFront/ALB routes APIs to Spring Boot; the backend connects to RDS and sends email through Amazon SES SMTP. The primary production workflows have been validated successfully.
+| Risk | Mitigation |
+| --- | --- |
+| An EC2 instance or AZ fails | ALB routes only to healthy targets; ASG maintains desired capacity and launches a replacement. |
+| Instance bootstrap fails | Standardize the Launch Template, User Data, and Docker restart behavior; keep failed targets out through the ALB health check. |
+| Scale-in or replacement interrupts requests | Use ALB deregistration delay/connection draining before removing a target. |
+| Single-AZ RDS remains a single point of failure | Maintain backups and snapshots, and test data recovery regularly. |
+| WAF false positives | Keep sensitive rules in Count, inspect sampled requests, and promote them to Block only after review. |
+| WAF cost increases | Monitor request volume, rules, logging, and enabled paid capabilities. |
+| NAT Gateway or outbound route fails | Check private-subnet routes, NAT Gateway state, and the Internet Gateway; keep NAT outside the inbound request path. |
+| One NAT Gateway is an outbound dependency for two AZs | Monitor the NAT Gateway, route tables, and connectivity alerts to detect failures early. |
+| New EC2 instances lack secrets or environment variables | Standardize Launch Template/User Data and validate runtime configuration before a target enters service. |
+| Compute cost exceeds expectations | Cap the ASG at `Max = 2` and monitor AWS Billing/Cost Explorer. |
+| Concurrent transactions produce inconsistent balances | Use database transactions, ACID behavior, and row-level locking. |
+| SES bounce, complaint, or quota issues | Monitor sending statistics, bounces/complaints, and SES quotas. |
 
+## 9. Results
 
+- S3 and CloudFront deliver the static frontend over HTTPS.
+- WAF inspects edge requests through the Core Rule Set using both Block and Count modes.
+- ALB, the Target Group, and ASG improve backend availability with two EC2 instances across two Availability Zones.
+- The Security Group design restricts CloudFront/Internet → ALB → EC2:8080 → RDS:3306; backend EC2 instances do not accept application traffic directly from the Internet.
+- RDS MySQL provides consistent transactional storage, while Single-AZ remains the current availability limitation.
+- SES provides personalized transactional email; CloudWatch supports metrics and service-health visibility.
+- The architecture balances security, availability, and cost optimization for the project scope without claiming end-to-end high availability.

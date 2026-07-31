@@ -57,7 +57,7 @@ Kết quả trong bucket gồm `index.html`, thư mục `assets/`, hình ảnh v
 
 ![Các static files frontend sau khi upload lên S3](/images/5-Workshop/5.4-Frontend-deployment/5.4.2-Frontend-release/s3-deployed-objects.png)
 
-<p style="text-align: center;"><em>Hình 5.13. Nội dung bản build frontend đã được upload lên S3 production bucket.</em></p>
+<p style="text-align: center;"><em>Hình 5.16. Nội dung bản build frontend đã được upload lên S3 production bucket.</em></p>
 
 ## Bước 4: Tạo CloudFront invalidation
 
@@ -71,7 +71,7 @@ aws cloudfront create-invalidation `
 
 ![Tạo CloudFront invalidation cho bản frontend mới](/images/5-Workshop/5.4-Frontend-deployment/5.4.2-Frontend-release/cloudfront-create-invalidation.png)
 
-<p style="text-align: center;"><em>Hình 5.14. Tạo invalidation cho toàn bộ đường dẫn sau khi cập nhật frontend.</em></p>
+<p style="text-align: center;"><em>Hình 5.17. Tạo invalidation cho toàn bộ đường dẫn sau khi cập nhật frontend.</em></p>
 
 Sau khi gửi yêu cầu, cần chờ invalidation chuyển sang trạng thái **Completed** trước khi đánh giá bản phát hành, tránh trường hợp trình duyệt nhận `index.html` cũ tham chiếu đến asset đã thay đổi.
 

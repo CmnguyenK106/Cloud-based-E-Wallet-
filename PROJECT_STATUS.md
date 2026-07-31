@@ -1,6 +1,6 @@
 # Cloud E-Wallet Project Status
 
-Last documentation audit: 2026-07-29
+Last documentation audit: 2026-07-31
 
 Cloud E-Wallet is a deployed simulated-funds learning application, not a real-money wallet.
 
@@ -11,51 +11,35 @@ Cloud E-Wallet is a deployed simulated-funds learning application, not a real-mo
 | Customer application | Implemented | Registration, authentication, email/account recovery, profile, wallet operations, recipient lookup, services, history |
 | Administration | Implemented | Dashboard, user block/unblock, transaction review, service lifecycle |
 | Frontend | Deployed | Responsive React/TypeScript/Vite static build on S3 through CloudFront |
-| Backend | Deployed | Dockerized Spring Boot on one EC2 target behind an ALB |
+| Backend | Deployed | Dockerized Spring Boot on two EC2 targets across two AZs behind an ALB |
 | Data and email | Deployed | Amazon RDS MySQL and Amazon SES SMTP; Resend fallback |
-| Backend high availability | Partial | ALB routing exists, but only one EC2 target is registered |
-| Automation | Future | Deployment remains manual; no CI/CD or Auto Scaling Group |
+| Application-tier availability | Implemented | ALB and ASG maintain two EC2 instances across two AZs; RDS remains Single-AZ |
+| Compute management | Deployed | ASG Min 0 / Desired 2 / Max 2 maintains backend instances; application release remains manual |
 
-## Production architecture
+## Target production architecture
 
 ```text
-Users
-  |
-  v
-Cloudflare DNS
-  |
-  v
-Amazon CloudFront
-  |-- Default behavior (*) --> Amazon S3 React frontend
-  |
-  `-- /api/* behavior --> Application Load Balancer (HTTP :80)
-                             |
-                             v
-                        Target group (:8080)
-                        health: /actuator/health
-                             |
-                             v
-                        One public-subnet EC2 instance
-                        Dockerized Spring Boot
-                             |
-                             +--> Private-subnet Amazon RDS MySQL
-                             `--> Amazon SES SMTP (STARTTLS)
+Users → CloudFront + AWS WAF
+          |-- Default (*) → S3 frontend
+          `-- /api/* → internet-facing ALB in 2 public subnets
+                         → Target Group (:8080, /actuator/health)
+                         → 2 EC2 instances in private application subnets
+                           ASG Min 0 / Desired 2 / Max 2
+                         → Single-AZ RDS MySQL in a private database subnet
+                         → SES SMTP over authenticated STARTTLS :587
+
+Private EC2 outbound → NAT Gateway in one public subnet → Internet Gateway
 ```
 
-CloudFront is the browser-facing HTTPS endpoint. It routes `/api/*` to the internet-facing ALB over HTTP. The old direct CloudFront-to-EC2 origin is removed. The ALB target is healthy and forwards to the containerized backend on port `8080`.
+CloudFront is the browser-facing HTTPS endpoint. WAF inspects requests before an origin. The ALB routes through the Target Group to healthy EC2 targets; ASG manages instance lifecycle and replacement. The NAT Gateway serves outbound connections initiated by private EC2 instances and is not part of inbound request routing. Cloudflare supplies DNS and verification records only.
 
-## Network security and limitations
+## Network security and availability boundaries
 
-- EC2 is currently in a public subnet with a public IPv4 address for manual administration and outbound access; it is not a private-subnet instance.
-- Application traffic reaches EC2 only from the ALB security group on port `8080`.
-- Direct public access to EC2 port `8080` is blocked.
-- SSH is restricted to the administrator's `/32` public IP.
-- EC2 ports `80` and `443` are closed, and Nginx is not installed or required.
-- RDS accepts MySQL only from the backend EC2 security group.
-- The ALB has one healthy EC2 target. Routing and health checks are implemented and direct exposure is reduced, but full fault tolerance and Multi-AZ application availability are not achieved.
-
-A stronger production design would place multiple backend instances in private subnets across Availability Zones, managed by an Auto Scaling Group. That requires a revised deployment/administration model, Systems Manager Session Manager, and controlled outbound connectivity such as a NAT Gateway or suitable VPC endpoints.
-
+- The target VPC design spans two AZs, with two public subnets for the internet-facing ALB and NAT Gateway placement, two private application subnets for EC2, and a private database subnet for RDS.
+- The Internet Gateway is attached to the VPC. One NAT Gateway in a public subnet provides outbound access for the private EC2 instances.
+- ALB accepts public TCP `80/443`; EC2 accepts `8080` only from the ALB SG; RDS accepts `3306` only from the EC2 SG.
+- ASG maintains two backend instances across two AZs and can replace an unhealthy instance.
+- A single NAT Gateway remains an outbound-path dependency, and Single-AZ RDS remains the principal database availability limit; the design is not end-to-end HA.
 ## Application evidence
 
 Source review confirms:
@@ -126,14 +110,10 @@ contents were not inspected.
 
 ## Future improvements
 
-1. Move backend EC2 instances to private subnets.
-2. Use Systems Manager Session Manager instead of public SSH.
-3. Add an Auto Scaling Group with multiple EC2 targets across Availability Zones.
+2. Evaluate Systems Manager Session Manager for private-instance administration.
 4. Add CI/CD for automated build, testing, image publishing, and deployment.
 5. Move Docker images from Docker Hub to Amazon ECR.
-6. Add controlled outbound access using a NAT Gateway or appropriate VPC endpoints.
 7. Add HTTPS directly between CloudFront and the ALB if required.
-8. Add AWS WAF and stronger monitoring or alerting.
 9. Add scheduled cleanup for expired account tokens using Spring scheduling or AWS Lambda with EventBridge.
 10. Integrate a real payment gateway for actual card or bank deposits.
 

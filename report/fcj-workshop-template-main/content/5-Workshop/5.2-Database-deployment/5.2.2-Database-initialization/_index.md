@@ -8,47 +8,140 @@ pre: " <b> 5.2.2. </b> "
 
 ## Objective
 
-Initialize the Cloud E-Wallet schema and seed data after RDS is ready, without exposing the database to the Internet.
+Initialize the Cloud E-Wallet schema, initial administrator account, and service catalog after Amazon RDS for MySQL is available. RDS remains in private subnets, and the scripts run from the backend EC2 instances over the internal network.
 
-## Step 1: Select the execution host
+## Execution scope
 
-Run the MySQL client from the backend EC2 instance or another approved host with private network access. Do not make RDS public merely to import data.
+| Environment | Work |
+| --- | --- |
+| Local machine | Review SQL scripts and prepare a private administrator seed that is excluded from Git |
+| Production EC2 | Connect to RDS and run the initialization scripts |
 
-## Step 2: Prepare the scripts
+The team does not make RDS public for data import. Its security group accepts MySQL TCP `3306` only from the backend EC2 security group.
 
-Run the files under `database/rds/` in this order:
+## Prepare the scripts
 
-1. `001_schema.sql` — tables, keys, and relationships.
-2. A private completed copy of `002_admin_template.sql` — initial administrator; never commit the completed copy.
-3. `003_services_seed.sql` — initial service records.
+Production scripts are stored in `database/rds/` and must run in this order:
 
-The `utf8mb4` schema includes `users`, `account_tokens`, `user_profiles`, `admin_profiles`, `wallets`, `services`, and `transactions`.
+| Order | Script | Purpose |
+| --- | --- | --- |
+| 1 | `001_schema.sql` | Create tables, keys, indexes, constraints, and relationships |
+| 2 | Private copy of `002_admin_template.sql` | Create the initial administrator account and profile |
+| 3 | `003_services_seed.sql` | Insert the five default application services |
 
-## Step 3: Connect and initialize
+The order matters because the administrator and service seeds depend on tables created by `001_schema.sql`.
+
+The `utf8mb4` schema contains seven main tables:
+
+- `users`
+- `account_tokens`
+- `user_profiles`
+- `admin_profiles`
+- `wallets`
+- `services`
+- `transactions`
+
+## Prepare the administrator seed safely
+
+`002_admin_template.sql` contains placeholders and is tracked in the repository. The team creates a private copy:
+
+```text
+database/rds/002_admin_local.sql
+```
+
+This copy contains the administrator's phone number, full name, and BCrypt password hash. The plaintext password is never written to the script.
+
+The repository includes this rule:
+
+```gitignore
+database/rds/*_local.sql
+```
+
+Therefore, `002_admin_local.sql` is not committed. Its contents, administrator information, and password hash are also excluded from screenshots and documentation.
+
+## Transfer scripts to EC2
+
+Using SFTP over the SSH connection, the team transfers the three required scripts to:
+
+```text
+/home/ec2-user/sql/
+```
+
+Verify the files on EC2 before execution:
 
 ```bash
-mysql -h <DB_ENDPOINT> -P 3306 -u <DB_USERNAME> -p <DB_NAME>
+ls -l /home/ec2-user/sql
 ```
 
-After confirming the target database:
+Commands from this point run in the production EC2 SSH terminal rather than on the local machine.
+
+## Connect to Amazon RDS for MySQL
+
+From EC2, connect with the MySQL client:
+
+```bash
+mysql \
+  -h <DB_ENDPOINT> \
+  -P 3306 \
+  -u <DB_USERNAME> \
+  -p \
+  <DB_NAME>
+```
+
+`<DB_ENDPOINT>`, `<DB_USERNAME>`, and `<DB_NAME>` are placeholders. The `-p` option prompts for the password interactively so it does not appear in the command or shell history.
+
+After signing in, confirm the target database:
 
 ```sql
-SOURCE database/rds/001_schema.sql;
-SOURCE <SAFE_ADMIN_SEED_FILE>;
-SOURCE database/rds/003_services_seed.sql;
+SELECT DATABASE();
+SHOW TABLES;
 ```
 
-Do not place the password directly in the command because shell history may retain it.
+Stop and correct the configuration if the selected database is not the intended production database.
 
-## Step 4: Verify
+## Initialize schema and data
+
+In the MySQL client on EC2, run:
+
+```sql
+SOURCE /home/ec2-user/sql/001_schema.sql;
+SOURCE /home/ec2-user/sql/002_admin_local.sql;
+SOURCE /home/ec2-user/sql/003_services_seed.sql;
+```
+
+Each script has a specific role:
+
+- `001_schema.sql` creates the database structure with `CREATE TABLE IF NOT EXISTS`.
+- `002_admin_local.sql` creates the administrator inside a transaction and is used only for initial setup.
+- `003_services_seed.sql` uses stable IDs and `ON DUPLICATE KEY UPDATE`, preventing duplicate service entries when rerun.
+
+Before the administrator seed runs, confirm that the database does not already contain an administrator account, avoiding unique-constraint errors or unintended data.
+
+## Validate the result
+
+Use queries that do not expose sensitive data:
 
 ```sql
 SHOW TABLES;
-SELECT COUNT(*) FROM services;
+
+SELECT role, status, COUNT(*) AS total
+FROM users
+GROUP BY role, status;
+
+SELECT id, name, price, is_active
+FROM services
+ORDER BY id;
 ```
 
-Verify the schema and seed records without capturing personal data, password hashes, or tokens.
+Expected results:
+
+- All seven main tables exist.
+- An active administrator account exists.
+- Five default services exist.
+- No foreign-key, unique-constraint, or character-set error appears.
+
+Do not query or capture phone numbers, email addresses, password hashes, or tokens. Exit the client with `EXIT;` after validation.
 
 ## Result
 
-The required schema and seed data exist. Backend EC2 can connect with runtime credentials, while direct Internet connections are rejected.
+Amazon RDS for MySQL now contains the complete schema, initial administrator account, and service catalog. All initialization work was performed from EC2 without exposing the database directly to the Internet.

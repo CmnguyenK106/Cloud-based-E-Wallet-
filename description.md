@@ -4,7 +4,7 @@
 >
 > ✅ The application currently includes simulated deposit/top-up, wallet-to-wallet transfer, service payment, and transaction history. Deposit is not a future feature.
 >
-> ✅ Current application deployment: Users → Cloudflare DNS → CloudFront; the default behavior serves the React frontend from Amazon S3, while `/api/*` routes to an internet-facing ALB → one EC2 target → Dockerized Spring Boot → Amazon RDS MySQL and Amazon SES SMTP. Resend SMTP remains an environment-selected rollback provider. The old direct CloudFront-to-EC2 origin has been removed.
+> ✅ Current application deployment: Users reach Amazon CloudFront over HTTPS, protected by AWS WAF. CloudFront serves the React build from Amazon S3 and routes `/api/*` to an internet-facing ALB → Target Group → two Dockerized Spring Boot EC2 instances across two Availability Zones. ASG uses Min 0 / Desired 2 / Max 2. The backend uses Single-AZ Amazon RDS MySQL and Amazon SES SMTP. Cloudflare is limited to DNS and AWS/SES verification records.
 >
 > ✅ Production uses manual `docker run`, environment file `/home/ec2-user/ewallet-backend.env`, and port mapping `8080:8080`. The exact deployed image tag is not authoritative in repository source. Docker Compose is local-only; automated CI/CD is not used.
 >
@@ -14,7 +14,7 @@
 >
 > ✅ The provider-migration repository validation passed 72 backend tests with no failures. Local, frontend build-time, and production runtime environment files remain separate for safety; documentation contains variable names and placeholders only.
 >
-> ⚠️ Current limitations: the ALB has only one healthy EC2 backend target, so full backend high availability is not achieved. There is no Auto Scaling Group, second backend instance, ECS/Fargate, or automated CI/CD; backend and frontend deployment remain manual.
+> ⚠️ Target availability boundary: ALB and ASG improve application-tier availability across two Availability Zones, but one NAT Gateway remains an outbound dependency and RDS is Single-AZ, so the design is not end-to-end highly available. Backend EC2 instances are placed in private application subnets and accept port 8080 only from the ALB Security Group.
 
 ## 1. Giới thiệu dự án
 
@@ -1413,56 +1413,23 @@ Người dùng mở trang lịch sử
 Kiến trúc đang hoạt động:
 
 ```text
-Users
-  |
-  v
-Cloudflare DNS
-  |
-  v
-Amazon CloudFront
-  |-- Default behavior (*) --> Amazon S3 React frontend
-  |
-  `-- /api/* behavior --> Application Load Balancer (HTTP :80)
-                             |
-                             v
-                        One EC2 target (:8080)
-                        Dockerized Spring Boot
-                             |
-                             +--> Amazon RDS MySQL
-                             `--> Amazon SES SMTP (STARTTLS)
+User → Amazon CloudFront + AWS WAF
+          |-- Default (*) → Amazon S3 React frontend
+          `-- /api/* → internet-facing ALB
+                         → Target Group (:8080, /actuator/health)
+                         → 2 EC2 chạy Spring Boot/Docker tại 2 AZ
+                           ASG Min 0 / Desired 2 / Max 2
+                         → RDS MySQL Single-AZ trong private subnet
+                         → Amazon SES SMTP (STARTTLS :587)
 ```
 
-CloudFront nhận HTTPS từ trình duyệt, phục vụ frontend S3 và chuyển `/api/*`
-đến ALB qua HTTP. ALB chuyển tiếp đến target group cổng `8080`; health check
-`/actuator/health` đã xác nhận target EC2 khỏe mạnh. Origin cũ đi trực tiếp từ
-CloudFront đến EC2 đã được gỡ bỏ.
+CloudFront nhận HTTPS từ người dùng; Cloudflare chỉ quản lý DNS và các record xác minh AWS/SES, không nằm trong application request flow như proxy hoặc CDN. Web ACL của AWS WAF dùng `AWS-AWSManagedRulesCommonRuleSet` (700 WCU); một số rule Block, còn SizeRestrictions và CrossSiteScripting ở Count để theo dõi.
 
-Backend chạy trong container `ewallet-backend`, dùng file môi trường ngoài
-repository `/home/ec2-user/ewallet-backend.env`, ánh xạ cổng `8080:8080`, và
-quy trình `docker run` thủ công. Tag image production chính xác không thể xác
-minh chỉ từ source repository. Frontend được build thủ công từ thư mục active
-`frontend/`, upload lên S3 và phân phối qua CloudFront; DNS do Cloudflare quản
-lý. Amazon SES SMTP là provider production cho verification, resend verification,
-forgot-password và reset-password.
+Trong mô hình mục tiêu, ALB internet-facing liên kết với hai public subnet ở hai Availability Zone và forward qua Target Group đến các EC2 healthy. ASG quản lý vòng đời hai EC2 private với `Min = 0`, `Desired = 2`, `Max = 2`; request không đi qua ASG. EC2 chỉ nhận port `8080` từ ALB Security Group và chủ động kết nối outbound qua một NAT Gateway trong public subnet rồi đến Internet Gateway. RDS ở private database subnet, chỉ nhận `3306` từ EC2 Security Group và vẫn là Single-AZ, vì vậy kiến trúc không được xem là HA end-to-end.
 
-Các file môi trường local, Vite build-time và EC2 runtime được giữ riêng vì có
-cơ chế nạp khác nhau. File chứa giá trị thật không được commit; tài liệu và
-template chỉ chứa tên biến hoặc placeholder.
+Backend chạy trong Docker với file môi trường ngoài repository `/home/ec2-user/ewallet-backend.env` và ánh xạ `8080:8080`. Frontend được build từ `frontend/`, upload lên S3 và phân phối qua CloudFront. Amazon SES SMTP xử lý verification, resend verification, forgot-password và reset-password bằng authentication và STARTTLS port `587`.
 
-EC2 hiện nằm trong public subnet và có public IPv4 để quản trị thủ công và truy
-cập Internet outbound, nhưng traffic ứng dụng chỉ được phép từ security group
-của ALB vào cổng `8080`. SSH cổng `22` chỉ cho phép IP quản trị `/32`; cổng
-`80` và `443` trên EC2 đóng; không có Nginx. Truy cập trực tiếp public IP EC2
-trên `8080` bị chặn. RDS nằm trong private subnet và chỉ nhận MySQL từ security
-group EC2.
-
-ALB hiện chỉ có một EC2 target. Routing và health check đã triển khai, nhưng
-chưa có fault tolerance đầy đủ hoặc application Multi-AZ. Hướng cải thiện là
-dùng Auto Scaling Group với nhiều target ở nhiều Availability Zone và chuyển
-EC2 vào private subnet, kết hợp Session Manager, NAT Gateway hoặc VPC endpoints
-phù hợp và quy trình deploy image mới. Các phần 15.1–15.5 bên dưới mô tả lịch
-sử và định hướng, không phải bằng chứng các hạng mục tương lai đã hoàn thành.
-
+Các file môi trường local, Vite build-time và EC2 runtime được giữ riêng. File chứa giá trị thật không được commit; tài liệu và template chỉ chứa tên biến hoặc placeholder.
 ## 15.1 Giai đoạn local
 
 ```text
@@ -1598,9 +1565,4 @@ Cloud-based E-wallet là một hệ thống ví điện tử mô phỏng phù h�
 
 Thiết kế hiện tại đã hoàn thành chức năng người dùng gồm đăng ký, JWT login/logout, xác minh và gửi lại email xác minh, quên/đặt lại mật khẩu, profile, số dư, nạp tiền mô phỏng, chuyển tiền với tra cứu tên người nhận, thanh toán dịch vụ và lịch sử giao dịch. Dashboard admin, quản lý user, giao dịch và dịch vụ cũng đã được triển khai.
 
-Hệ thống hiện đã deploy frontend lên Amazon S3/CloudFront, dùng Cloudflare DNS,
-route `/api/*` qua ALB đến Spring Boot trong container `ewallet-backend` trên
-một EC2, kết nối Amazon RDS MySQL và gửi mail qua Amazon SES SMTP STARTTLS port 587.
-ALB và health check đã hoàn thành, nhưng Auto Scaling, backend instance thứ hai,
-ECS/Fargate và CI/CD vẫn là kế hoạch tương lai; deployment backend và frontend
-hiện còn thủ công.
+Hệ thống hiện phân phối frontend từ Amazon S3 qua CloudFront được bảo vệ bằng AWS WAF. Request `/api/*` đi qua ALB và Target Group đến hai EC2 tại hai Availability Zone do ASG quản lý. Backend kết nối RDS MySQL Single-AZ và gửi transactional email qua Amazon SES SMTP STARTTLS port 587. Application tier có khả năng chịu lỗi tốt hơn, nhưng RDS Single-AZ vẫn là giới hạn availability; việc triển khai phiên bản ứng dụng hiện còn thủ công.

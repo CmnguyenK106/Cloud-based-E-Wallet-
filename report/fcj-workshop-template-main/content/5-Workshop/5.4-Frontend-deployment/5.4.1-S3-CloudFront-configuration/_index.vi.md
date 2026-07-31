@@ -25,7 +25,7 @@ Bucket `khoi-ewallet-frontend-2026` chỉ lưu kết quả build trong `frontend
 S3 bucket được giữ private bằng **Block Public Access**. Người dùng không truy cập object trực tiếp từ S3; CloudFront đọc object thông qua Origin Access Control và bucket policy giới hạn theo distribution.
 ![Block Public Access của S3 frontend bucket](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/s3-block-public-access.png)
 
-<p style="text-align: center;"><em>Hình 5.9. Block Public Access được bật cho S3 frontend bucket.</em></p>
+<p style="text-align: center;"><em>Hình 5.11. Block Public Access được bật cho S3 frontend bucket.</em></p>
 
 ## Cấu hình CloudFront distribution
 
@@ -40,7 +40,7 @@ CloudFront distribution `ewallet-frontend` được dùng làm điểm truy cậ
 
 ![Cấu hình tổng quan CloudFront distribution](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/cloudfront-general.png)
 
-<p style="text-align: center;"><em>Hình 5.10. Cấu hình domain, chứng chỉ TLS và default root object của CloudFront.</em></p>
+<p style="text-align: center;"><em>Hình 5.12. Cấu hình domain, chứng chỉ TLS và default root object của CloudFront.</em></p>
 
 ## Cấu hình origin
 
@@ -55,7 +55,7 @@ S3 origin sử dụng Origin Access Control thay vì mở public bucket. ALB ori
 
 ![Danh sách origin của CloudFront](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/cloudfront-origins.png)
 
-<p style="text-align: center;"><em>Hình 5.11. S3 frontend origin và Application Load Balancer origin trong CloudFront.</em></p>
+<p style="text-align: center;"><em>Hình 5.13. S3 frontend origin và Application Load Balancer origin trong CloudFront.</em></p>
 
 ## Cấu hình behavior
 
@@ -68,10 +68,17 @@ Việc tách behavior cho phép frontend và API dùng chung domain `cloud-ewall
 
 ![Các behavior của CloudFront distribution](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/cloudfront-behaviors.png)
 
-<p style="text-align: center;"><em>Hình 5.12. Behavior `/api/*` đến ALB và default behavior đến S3 frontend.</em></p>
+<p style="text-align: center;"><em>Hình 5.14. Behavior `/api/*` đến ALB và default behavior đến S3 frontend.</em></p>
 
 Đối với React Router, nếu truy cập trực tiếp một route trả về `403` hoặc `404`, cần cấu hình custom error response trả `/index.html` với HTTP status `200`, sau đó kiểm tra lại các route trên domain production.
 Custom domain, các DNS record của CloudFront, ACM và Amazon SES được trình bày tại [mục 5.5](../../5.5-Traffic-security/).
+
+## Gắn AWS WAF với CloudFront
+
+Web ACL sử dụng `AWS-AWSManagedRulesCommonRuleSet` (700 WCU) được associate với distribution để kiểm tra request trước S3 và ALB origin. Các rule đã đánh giá phù hợp dùng Block; SizeRestrictions và CrossSiteScripting được để Count để theo dõi sampled requests trước khi block. WAF không thay thế cơ chế xác thực JWT, Spring Security hoặc validation phía backend.
+![AWS WAF Web ACL và AWS Managed Rules](/images/5-Workshop/5.4-Frontend-deployment/5.4.1-S3-CloudFront-configuration/waf-common-rule-set.png)
+
+<p style="text-align: center;"><em>Hình 5.15. Web ACL của CloudFront sử dụng AWS Managed Rules Common Rule Set để kiểm tra request.</em></p>
 
 ## Kiểm tra kết quả
 

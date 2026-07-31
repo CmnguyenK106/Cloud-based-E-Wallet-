@@ -31,52 +31,33 @@ Deposit is a simulation. Card number, cardholder name, expiry, CVV, and funding 
 
 ## Production architecture
 
+The report now presents the following target deployment model:
+
 ```text
-Users
-  |
-  v
-Cloudflare DNS
-  |
-  v
-Amazon CloudFront
-  |-- Default behavior (*) --> Amazon S3 React frontend
-  |
-  `-- /api/* behavior --> Application Load Balancer
-                             |
-                             v
-                        Amazon EC2
-                        Dockerized Spring Boot backend
-                             |
-                             +--> Amazon RDS MySQL
-                             |
-                             `--> Amazon SES SMTP
+Users → Amazon CloudFront protected by AWS WAF
+          |-- Default (*) → private Amazon S3 React frontend
+          `-- /api/* → internet-facing Application Load Balancer
+                         → Target Group (:8080, /actuator/health)
+                         → 2 private-subnet EC2 instances across 2 AZs
+                           managed by ASG (Min 0 / Desired 2 / Max 2)
+                         → private-subnet Single-AZ Amazon RDS MySQL
+                         → Amazon SES SMTP (587, authenticated STARTTLS)
+
+Private EC2 outbound → NAT Gateway in a public subnet
+                       → Internet Gateway → Internet/public service endpoint
 ```
 
-- Browser-to-CloudFront traffic uses HTTPS.
-- CloudFront sends `/api/*` to the internet-facing ALB over HTTP port 80.
-- The ALB forwards requests to the backend target group on port 8080.
-- Target group health checks use `/actuator/health`; the registered EC2 target was verified healthy.
-- The previous direct CloudFront-to-EC2 API origin has been removed.
-- The backend runs in Docker on one EC2 instance. The ALB is ready for additional targets, but one target does not provide full backend high availability.
-- Amazon RDS MySQL remains in private subnets.
-- Spring Mail uses provider-neutral SMTP settings. `EMAIL_PROVIDER` selects Amazon
-  SES (the production default) or Resend (fallback) without changing business
-  logic. Both use authenticated STARTTLS on port 587.
+CloudFront is the browser-facing HTTPS endpoint. AWS WAF uses `AWS-AWSManagedRulesCommonRuleSet`; selected rules block requests while SizeRestrictions and CrossSiteScripting remain in Count for observation. CloudFront serves the frontend from S3 and routes `/api/*` to the ALB. The ALB forwards through the Target Group only to healthy EC2 instances. ASG manages instance lifecycle rather than carrying request traffic. Cloudflare is used only for DNS and AWS/SES verification records, not as an application proxy or CDN.
 
 ## EC2 and network security
 
-The current EC2 instance is in a public subnet and has a public IPv4 address for manual administration and outbound Internet access. It is not directly exposed for application traffic:
+The target VPC design spans two Availability Zones in `ap-southeast-1`. The internet-facing ALB is associated with two public subnets, while the two ASG-managed backend instances are placed in private application subnets. Single-AZ RDS MySQL remains in a private database subnet. One NAT Gateway in a public subnet provides outbound access for the private EC2 instances through the Internet Gateway; it is not part of the inbound application path.
 
-- EC2 port `8080` accepts inbound traffic only from the ALB security group.
-- SSH port `22` accepts inbound traffic only from the administrator's specific `/32` public IP.
-- EC2 ports `80` and `443` are closed.
-- No Nginx service runs on EC2; Docker publishes Spring Boot on `8080`.
-- Direct access to the EC2 public IPv4 address on port `8080` is blocked.
-- The ALB security group permits the required public HTTP listener traffic.
-- The RDS security group permits MySQL only from the backend EC2 security group.
-
-Moving the backend to private subnets is a future improvement. It would require private-instance administration, preferably Systems Manager Session Manager, plus controlled outbound access through a NAT Gateway or suitable VPC endpoints and a revised image deployment process.
-
+- ALB security group: public TCP `80/443` according to the active listeners.
+- EC2 security group: TCP `8080` only from the ALB security group; no direct backend traffic from the Internet.
+- RDS security group: MySQL `3306` only from the EC2 security group.
+- One NAT Gateway is a cost-conscious design but remains an outbound-path dependency across the two-AZ application tier.
+- RDS is Single-AZ, so the design does not claim end-to-end high availability.
 ## Project structure
 
 ```text
@@ -160,14 +141,10 @@ There is no frontend automated test script. Verified repository and production v
 
 ## Future improvements
 
-1. Move backend EC2 instances to private subnets.
-2. Use Systems Manager Session Manager instead of public SSH.
-3. Add an Auto Scaling Group with multiple EC2 targets across Availability Zones.
+2. Evaluate Systems Manager Session Manager for private-instance administration.
 4. Add CI/CD for automated build, testing, image publishing, and deployment.
 5. Move Docker images from Docker Hub to Amazon ECR.
-6. Add controlled outbound access using a NAT Gateway or appropriate VPC endpoints.
 7. Add HTTPS directly between CloudFront and the ALB if required.
-8. Add AWS WAF and stronger monitoring and alerting.
 9. Add scheduled expired-token cleanup with Spring scheduling or AWS Lambda and EventBridge.
 10. Integrate a real payment gateway for actual card or bank deposits.
 
